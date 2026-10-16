@@ -1,97 +1,132 @@
-# Deployment and operations
+# A2 Hosting deployment and operations
 
-This guide describes the intended deployment after implementation. There is currently no runnable service or cron wrapper in the repository.
+## Hosting target and prerequisites
 
-## Hosting target
+Use the owner's existing **A2 Hosting Basic plan**. GitHub stores the source and runs checks. A2 executes the daily production job through cron. The account has not yet been inspected, and nothing has been deployed or scheduled there.
 
-Deploy to the owner's existing **A2 Hosting Basic plan**. GitHub remains the source repository and can run automated checks; production scheduling belongs on A2 Hosting.
+Before launch, verify:
 
-The provider and plan are selected, but compatibility has not yet been verified in the account. Before deployment, confirm:
+- Node.js 24 LTS, or a maintained Node.js 22 release at least 22.12, executable from cron with built-in SQLite available.
+- Cron access, private writable persistent storage, and a way to upload/deploy the compiled application.
+- Outbound HTTPS connections to CBV and TLS connections to the chosen SMTP provider.
+- Memory and execution limits sufficient for a live dry-run (the local run completed in a few seconds; hosting performance is unverified).
+- An authenticated SMTP account and verified sender.
 
-- A supported Node.js runtime executable from cron and a way to deploy/build the application.
-- Cron access and a verified way to schedule 16:00 America/Toronto across daylight-saving changes.
-- Writable persistent storage and compatibility with the selected SQLite driver.
-- Outbound HTTPS access to CBV and TLS connections to the chosen SMTP provider.
-- Memory and execution limits sufficient for the job.
-- Browser automation support only if CBV requires JavaScript rendering.
+Browser automation is unnecessary for the current adapter. Root access, a public web endpoint, and a continuously running Node process are unnecessary. Inspect Node.js, Cron Jobs, and Terminal/SSH features in the hosting panel. If unavailable, document the specific limitation before upgrading or changing platforms.
 
-Inspect the account's Node.js, Cron Jobs, and Terminal/SSH features, then validate the runtime with a dry run. Do not assume root access or that the account can change the server timezone. If a requirement is unavailable, document the limitation before choosing an alternative or upgrading.
+## Install and configure
 
-## Configuration
+Choose a private application directory outside `public_html`, for example `/home/ACCOUNT/apps/sportstracker`. Replace `ACCOUNT` and the Node path below with actual account values.
 
-Keep secrets in a server-owned environment file readable only by the service account. Do not commit SMTP credentials, the recipient's runtime delivery history, raw snapshots, or email previews.
+```sh
+cd /home/ACCOUNT/apps/sportstracker
+npm ci
+npm run check
+npm run build
+cp .env.example .env
+chmod 600 .env
+```
 
-| Variable | Proposed value / purpose |
+If builds are not possible on A2, build on a compatible environment and upload `dist`, package manifests, and the wrapper, then install production dependencies with `npm ci --omit=dev`. Production uses compiled JavaScript; `tsx` and TypeScript are not needed at runtime.
+
+Edit `.env` privately:
+
+| Variable | Value / purpose |
 | --- | --- |
-| `EMAIL_TO` | `vinicius@hisao.com.br` |
-| `ERROR_EMAIL_TO` | `vinicius@hisao.com.br` |
-| `EMAIL_FROM` | Required verified sender; not yet selected |
-| `SMTP_HOST`, `SMTP_PORT` | Provider-specific; not yet selected |
-| `SMTP_USER`, `SMTP_PASS` | Provider credentials |
-| `SMTP_SECURE` | Provider-specific implicit TLS setting; require TLS for submission |
+| `DRY_RUN` | Keep `true` until preview and SMTP verification; set `false` for production cron |
 | `TIMEZONE` | `America/Toronto` |
-| `EMAIL_LOCALE` | `en-CA` |
-| `CBV_SEASON` | Explicit supported season; initial research identified `2026-2027` |
-| `CBV_MEN_URL` | `https://cbv.com.br/volei-de-quadra/superliga-a-masculina` |
-| `CBV_WOMEN_URL` | `https://cbv.com.br/volei-de-quadra/superliga-a-feminina` |
-| `CBV_SOURCE_TIMEZONE` | Required after verifying CBV's published timezone convention |
-| `STATE_DB_PATH` | `/var/lib/sportstracker/state.sqlite` |
-| `DRY_RUN` | Default `true` until delivery validation is complete |
+| `CBV_SEASON` | `2026-2027`; update only after verifying next season |
+| `CBV_MEN_URL` | Current official men's competition URL from `.env.example` |
+| `CBV_WOMEN_URL` | Current official women's competition URL from `.env.example` |
+| `EMAIL_TO`, `ERROR_EMAIL_TO` | `vinicius@hisao.com.br` |
+| `EMAIL_FROM` | Verified sender address; plain address without display name |
+| `SMTP_HOST`, `SMTP_PORT` | Provider settings; port defaults to 587 |
+| `SMTP_SECURE` | `false` for mandatory STARTTLS (usually 587), `true` for implicit TLS (usually 465) |
+| `SMTP_USER`, `SMTP_PASS` | Private provider credentials |
+| `STATE_DB_PATH` | Absolute private path, e.g. `/home/ACCOUNT/private/sportstracker/state.sqlite` |
 
-The adapter configuration must also record verified games/results/standings URLs, season coverage, and roster information. Do not reuse the old `SPORTS_API_*` settings for CBV.
+`ENV_FILE` may point to a separate private environment file. Existing process environment variables take precedence over `.env`. Source timestamps already carry offsets, so no `CBV_SOURCE_TIMEZONE` is required. SQLite state and previews must not be in a publicly served directory.
 
-## Deployment sequence
+Run a compiled live preview using the actual account Node executable:
 
-1. Verify the A2 Hosting Basic account against the requirements above. Identify the host OS and available supported Node.js LTS release, then select compatible package versions and an SMTP provider. Verify a sender and the provider's domain authentication requirements.
-2. Implement and verify the modules and tests in the implementation specification. Add the actual package scripts and production wrapper before using the commands below.
-3. Deploy an immutable build under `/opt/sportstracker`, owned by a dedicated service account. Install locked dependencies and compile TypeScript during deployment, not every scheduled run.
-4. Provision writable state/log directories and restrictive configuration permissions. Ensure time synchronization and timezone data are maintained.
-5. Run tests and a live dry-run, compare all four sections with CBV, then perform one controlled email delivery to the configured recipient.
-6. Disable/remove the legacy Londrina GitHub Actions schedule as part of implementation migration. Update `.env.example` to the CBV configuration above. Keep one production scheduler.
-7. Install and verify cron. Observe the first scheduled run and record its start time, acceptance time, and delivery outcome.
+```sh
+NODE_BIN=/absolute/path/to/node ./scripts/run-daily.sh --dry-run
+```
 
-## Scheduling at 4 PM Toronto
+Inspect `output/digest.html`, `output/digest.txt`, and the source counts. Verify Node/SQLite access, file permissions, and CBV access on A2. Compare the preview with both official competition pages. Then perform one controlled send:
 
-Recommended cron entry **only on a cron implementation that supports `CRON_TZ`**:
+```sh
+NODE_BIN=/absolute/path/to/node ./scripts/run-daily.sh --send
+```
+
+This sends to the configured recipient even while `DRY_RUN=true`. Verify delivery and rendering in the actual inbox before setting `DRY_RUN=false`. A successful send records that day's digest; later normal invocations skip it.
+
+## Cron at 4 PM Toronto
+
+On a host with verified `CRON_TZ` support:
 
 ```cron
 CRON_TZ=America/Toronto
-0 16 * * * /opt/sportstracker/scripts/run-daily.sh >> /var/log/sportstracker/cron.log 2>&1
+0 16 * * * NODE_BIN=/absolute/path/to/node /home/ACCOUNT/apps/sportstracker/scripts/run-daily.sh >> /home/ACCOUNT/private/sportstracker/cron.log 2>&1
 ```
 
-The wrapper must set an explicit working directory and executable paths, securely load the environment, acquire a lock, apply a ten-minute total execution budget, invoke the compiled job, and preserve its exit status. Proposed paths are deployment conventions, not existing files. On A2 Hosting, replace `/opt/sportstracker`, `/var/lib/sportstracker`, and `/var/log/sportstracker` with private, writable paths under the hosting account home directory when system directories are unavailable; keep configuration and state outside the public web directory. Use the hosting account user if a dedicated service account cannot be created. Do not place credentials directly in crontab.
+On cPanel/cron without verified timezone support, use the application gate:
 
-`CRON_TZ` support must be checked on the actual server. Setting Node's `TZ` or the application's `TIMEZONE` does not change cron's scheduling timezone. If the cron implementation lacks timezone support, use a Toronto-configured host or an every-minute cron entry plus an application due-time gate evaluated in `America/Toronto`; the gate must allow only the 16:00 invocation and use the daily delivery key to prevent duplicates. Verify DST behavior on the deployed scheduler rather than replacing Toronto with a fixed UTC offset.
+```cron
+* * * * * NODE_BIN=/absolute/path/to/node /home/ACCOUNT/apps/sportstracker/scripts/run-daily.sh --scheduled >> /home/ACCOUNT/private/sportstracker/cron.log 2>&1
+```
 
-Schedule the job at 16:00 daily, including weekends, holidays, and the off-season. Source retrieval and provider processing add latency before arrival. A server that was down at 16:00 does not automatically catch up with ordinary cron. Default recovery is an operator-triggered run for the current Toronto date; historical sends require explicit dates and are not automatic.
+The second entry starts a small process each minute; the application performs the daily work only at 16:00 `America/Toronto`, following DST automatically. Confirm the account permits every-minute cron before choosing this option. Install only one production schedule. Keep `DRY_RUN=false` in the private environment file; do not embed SMTP secrets in cron.
 
-## Logging and retention
+Create the private log directory before adding cron. Use absolute executable and script paths because cron's PATH is usually minimal. The wrapper fixes the working directory; the application owns locking and its ten-minute deadline.
 
-Emit structured logs with run ID, digest date, stage, duration, source URLs, record counts, parser version, status, and sanitized error category. Never log SMTP passwords or complete configuration. Suggested starting retention: 30 days of logs and restricted diagnostic HTML/snapshots; one season of delivery metadata. Configure rotation and cleanup, plus SQLite backup and restore procedures.
+Setting Node's `TZ` does not change cron's scheduling timezone. The process starts at 16:00; retrieval/provider processing add latency before inbox arrival. Cron does not catch up after server downtime. Run manually for the current date after recovery; historical sends require `--date` explicitly.
 
-Fetch time is not source freshness: an unchanged valid standings table is normal on a no-game day. Show the source's own update time when published and do not claim that fetching a page proves all results are current.
+There is no legacy production workflow in the current checkout. `.github/workflows/check.yml` performs offline checks only. Disable any old external schedule still configured elsewhere to avoid multiple senders.
 
-## Recovery procedures
+## Failure recovery
 
 | Symptom | Action |
 | --- | --- |
-| Source timeout/rate limiting | Inspect status and retry timing; retry after recovery, preserving the daily delivery key |
-| Parser/validation failure | Inspect saved HTML, compare live CBV markup, update adapter and fixtures, run checks, then preview before resending |
-| Wrong season | Verify official current-season pages and roster, update configuration, and validate both competitions |
-| SMTP credentials/sender failure | Correct provider configuration, verify the sender, and retry only definitely rejected attempts |
-| Delivery marked `sending` or `unknown` | Check provider records by Message-ID before retrying; duplicate delivery is possible if acceptance cannot be established |
-| No run record or error email | Inspect cron, server uptime, permissions, disk space, logs, and SMTP availability |
-| Corrupt/unavailable state | Restore a verified backup and reconcile provider records before enabling sends |
+| Source timeout or rate limit | Inspect sanitized error category and retry after recovery |
+| Parser/coverage failure | Inspect restricted `output/sources` HTML, compare CBV markup, update parser and fixtures, then test and preview |
+| Wrong season | Verify official URLs, new roster, and schedule before changing `CBV_SEASON` |
+| SMTP rejection | Correct credentials, sender, or provider configuration; retry definite rejections |
+| `DELIVERY_BLOCKED` | Inspect provider logs using the stored Message-ID; never assume an unresolved email failed |
+| `STALE_LOCK` | Read `STATE_DB_PATH.lock/owner.json`, verify the process stopped, reconcile delivery state, then remove only that lock directory |
+| No run/error email | Inspect cron, uptime, permissions, runtime, disk, and provider connectivity |
+| Database failure | Restore a verified backup and reconcile provider delivery records before re-enabling sends |
 
-Exit statuses to implement: `0` for successful delivery, dry run, or already-delivered skip; `1` for operational failure; `2` for invalid configuration. A lock-contention skip should be recorded separately and exit `0`, because the active instance owns the run.
+To inspect delivery history with an available SQLite client:
 
-A source error can be emailed while the provider is healthy. A server outage or provider-wide outage cannot reliably be reported through that same server/provider. Optional independent uptime or missed-run monitoring can cover that gap; it is not configured by this documentation.
+```sql
+SELECT digest_key, status, message_id, reason, updated
+FROM deliveries ORDER BY updated DESC LIMIT 20;
+```
 
-## Remaining launch decisions
+After reviewing provider evidence, a deliberate resend is:
 
-- SMTP provider, verified sender, and credentials.
-- A2 Hosting Basic capability checks, host OS, cron implementation, deployment account, and account-writable paths.
-- Verified CBV source timezone, final-result markup, complete schedule coverage, and men's standings navigation.
-- Runtime and dependency versions, and whether browser rendering is necessary.
+```sh
+NODE_BIN=/absolute/path/to/node ./scripts/run-daily.sh --send --date 2026-10-26 --resend-reason "Provider confirmed no delivery"
+```
 
-The recipient, 16:00 Toronto schedule, English language, CBV scraping, men's/women's coverage, and A2 Hosting Basic as the deployment target are already settled.
+This creates a new attempt and Message-ID, preserving the reason. Prior unresolved attempts become `superseded`; they are not proof of rejection. If the previous email did arrive, the override can create a duplicate. Do not automate this flag.
+
+Exit codes: `0` for acceptance, preview, already-sent skip, not-due skip, or active-lock skip; `1` for operational failure; `2` for invalid configuration. A hard timeout exits `1` and may leave the lock for review.
+
+## Logs, backups, and retention
+
+Logs contain run ID, digest date, stage, duration, source counts, and sanitized error codes. Unexpected exception messages are suppressed to avoid leaking credentials. Raw HTML, snapshots, and email previews are private local diagnostics and are ignored by Git.
+
+Configure log rotation on the server (initial recommendation: 30 days). Source diagnostics/preview files are overwritten on each run. SQLite snapshots and run history accumulate; schedule cleanup of snapshots/runs older than 30 days and resolved delivery history older than one season only after establishing backups. Retain unresolved attempts until reconciled. Retention cleanup is an operator responsibility, not an automatic job feature.
+
+Use SQLite's online backup facilities or stop the job and checkpoint before backing up; do not copy only the main database while a WAL write is active. Test recovery before relying on backups.
+
+SMTP acceptance is not an inbox guarantee. Provider outages, invalid credentials, a stopped server, or a hard crash can prevent error emails. Independent missed-run monitoring can cover this gap but is not configured.
+
+## Remaining launch work
+
+1. Verify the A2 Basic account capabilities and choose account paths/Node executable.
+2. Configure SMTP provider and verified sender privately.
+3. Run the compiled preview and controlled delivery on A2; inspect desktop/mobile inbox rendering.
+4. Enable one cron schedule, observe the first scheduled run, and configure backups/log rotation.

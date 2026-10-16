@@ -1,147 +1,96 @@
-# Implementation specification
+# Implementation details
 
-Status: proposed behavior and interfaces; none of the commands or modules below exist yet.
+Implemented in TypeScript with strict checking. Node.js 24 LTS is the production recommendation. Node.js 22.12 is the minimum tested runtime; scripts pass `--experimental-sqlite` for its built-in SQLite module. This avoids native SQLite package compilation on shared hosting. The account must supply a Node build with SQLite enabled.
 
-## Runtime and modules
+## Modules
 
-Use a supported Node.js LTS release selected at implementation time, TypeScript with strict checking, and a committed dependency lockfile. Proposed libraries: an HTML parser such as Cheerio, a timezone-aware date library such as Luxon, a schema validator, an SMTP transport such as Nodemailer, and a SQLite driver compatible with the selected runtime. Add browser automation only if HTML inspection establishes a need. Verify versions against official documentation before installing.
+| Module | Responsibility |
+| --- | --- |
+| `src/main.ts` | Environment loading, CLI entry point, hard ten-minute deadline |
+| `src/config.ts` | Validated configuration, explicit send/dry-run flags, Toronto scheduling gate |
+| `src/job.ts` | Lock, fetch, render, delivery orchestration, error reporting |
+| `src/cbv/fetch.ts` | Restricted official-host HTTP retrieval, retries, fixture loading |
+| `src/cbv/parse.ts` | CBV HTML hydration parsing, source identities, normalization, completeness checks |
+| `src/types.ts` | Normalized match, standing, snapshot, and email contracts |
+| `src/email/render.ts` | Toronto-day selection, English HTML and plain text |
+| `src/email/transport.ts` | TLS SMTP submission and conservative outcome classification |
+| `src/email/config-error.ts` | Startup error notification with independently validated mail settings |
+| `src/state.ts` | SQLite run/snapshot/delivery history and filesystem process lock |
+| `src/errors.ts` | Safe operational error categories |
+| `scripts/run-daily.sh` | Compiled-job launcher with explicit working directory and Node path support |
 
-Suggested structure:
+Dependencies and exact resolved versions are in `package-lock.json`. Cheerio parses HTML, Luxon handles dates/timezones, Zod validates source records, Nodemailer submits mail, and dotenv reads private configuration. No browser engine or sports data API is required.
+
+## Website adapter
+
+The current CBV pages expose full `matchesByRound` data in their Next.js hydration scripts. The parser reads only JSON literal arguments of `self.__next_f.push`, concatenates text chunks, and walks JSON records. It never evaluates website JavaScript. Data transport details remain an adapter dependency that may change when CBV updates its website.
+
+For each competition, retrieve the configured landing page and follow its actual current standings link. The full standings data contains `championshipId`, `teams`, and `lastUpdated`. The adapter validates the visible competition/season labels and joins schedule and standings by championship ID. It does not use homepage previews, legacy WordPress pages, or a different season as a silent fallback.
+
+Match and team identities are namespaced by competition and season. CBV's stable numeric IDs form their suffixes; changing kickoff time does not change identity. Official names retain accents, with whitespace normalized. Scores and points remain source values.
+
+Coverage checks require:
+
+- Exactly one full round-grouped schedule and the matching standings table.
+- All required match fields, explicit timestamp offsets, unique consistent match records, and valid completed scores.
+- Unique standings teams, contiguous official ranking positions, and valid numeric points (including preseason zeroes).
+- Identical team sets in schedule and standings.
+- Every unordered pairing once in TURNO and once in RETURNO, for `n × (n − 1)` regular-season matches. Team count is derived from the source, not a permanently hardcoded 12.
+
+Some published return fixtures retain the same home/away order as their first fixture. Coverage therefore checks unordered pairs within each phase rather than requiring reversed home/away assignments. Playoff fixtures present in the full schedule are retained in addition to the regular season. Published standings order is preserved; the email notes that this may remain a regular-season table during playoffs.
+
+## Time and status handling
+
+CBV's embedded `MatchDateTime` values contain explicit offsets. Parse the complete instant and convert it to UTC, then select/display it in `America/Toronto`. For example, `2026-10-24T23:30:00+02:00` is `21:30Z` and `5:30 PM` Toronto time. Do not assume the source timestamp's wall clock is Brazilian local time.
+
+Capture the run time once to determine the digest date. Yesterday is the preceding Toronto calendar date, not a fixed 24-hour subtraction. Include all of today's matches, even completed matches earlier than 16:00. Yesterday's unfinished matches remain visible as `Result pending`. Explicit live and postponed flags are preserved. Finished scores require three sets for the winner and zero to two for the other side.
+
+Current adapter limitations deliberately fail closed:
+
+- Missing/date-only/offset-free timestamps fail validation. The initial proposed `Time TBD` fallback is not enabled because the inspected source does not establish a reliable unknown-time representation.
+- Administrative/disqualification outcomes fail validation pending explicit interpretation.
+- Empty/unpublished standings fail validation rather than being treated as an empty league. No verified explicit unpublished-state adapter exists yet.
+- An entirely removed cancelled fixture cannot be reconstructed from the current page. There is no cancellation-change history or late-result catch-up email.
+- A future competition format without the current complete TURNO/RETURNO schedule needs a reviewed adapter update.
+
+These failures produce an error notification instead of an incomplete normal digest. The service reflects CBV's current published data; it cannot independently confirm the correctness of provisional dates or delayed scores.
+
+## HTTP policy
+
+Only HTTPS on `cbv.com.br` is allowed, including redirect targets. Requests use a descriptive user agent, manual redirect validation, a 20-second request timeout, at most three redirects, and a 10 MB body cap. Non-HTML content and permanent HTTP failures are not retried. Network failures, HTTP 429, and 5xx responses get at most three attempts. Retry-After is honored up to 60 seconds; longer delays fail for operator retry. Successful requests are separated by 300 ms.
+
+The job reserves 30 seconds of its ten-minute limit for failure reporting. The CLI's hard timeout terminates a hung process and leaves conservative recovery state. Diagnostic HTML is saved with restricted permissions under `output/sources` and overwritten on each run. No raw source content or secrets are emailed or logged.
+
+## Delivery and recovery
+
+The daily digest key is `(recipient, Toronto date, timezone, digest)`. Production runs acquire a filesystem lock before opening SQLite. An active lock results in a logged successful skip. A lock older than eleven minutes causes an error notification and requires operator review; it is never automatically removed.
+
+SQLite stores runs, normalized snapshots, and delivery attempts. Each attempt has a unique Message-ID, content hash, timestamp, and optional operator override reason. A transactional partial unique index prevents more than one unresolved attempt for a digest key.
+
+State progression:
 
 ```text
-src/
-  main.ts
-  config.ts
-  cbv/fetch.ts
-  cbv/parse-games.ts
-  cbv/parse-standings.ts
-  normalize.ts
-  validate.ts
-  digest.ts
-  email/render.ts
-  email/transport.ts
-  state.ts
-  errors.ts
-test/fixtures/cbv/
-scripts/run-daily.sh
+prepared → sending → accepted
+                   → rejected
+                   → unknown
+unresolved attempt → superseded (explicit audited operator override only)
 ```
 
-## Data contracts
+An accepted digest skips later ordinary runs for that day. `prepared`, `sending`, and `unknown` block automatic resends. Explicit SMTP rejection is distinct from a lost connection after possible acceptance. Only definite transient rejection or pre-submission connection failure is retried, at most three times. A lost DATA reply is never retried automatically.
 
-```ts
-type Competition = 'men' | 'women';
-type MatchStatus = 'scheduled' | 'live' | 'finished'
-  | 'postponed' | 'cancelled' | 'unknown';
+SMTP and SQLite cannot form one atomic transaction. A crash after provider acceptance but before state recording leaves an unresolved attempt. Inspect provider records by Message-ID before using `--resend-reason`. Message-ID does not guarantee provider deduplication. SMTP acceptance also does not guarantee inbox placement.
 
-interface Team {
-  id: string; // Namespaced by season and competition.
-  name: string; // Official display name, accents preserved.
-}
-interface Match {
-  id: string;
-  competition: Competition;
-  season: string; // Canonical format, e.g. 2026-2027.
-  phase: string;
-  home: Team;
-  away: Team;
-  sourceDate: string; // YYYY-MM-DD in verified source timezone.
-  sourceTimezone: string;
-  startsAt: string | null; // UTC ISO instant; null when time is unannounced.
-  status: MatchStatus;
-  homeSets: number | null;
-  awaySets: number | null;
-  sourceUrl: string;
-  fetchedAt: string;
-}
-interface Standing {
-  competition: Competition;
-  season: string;
-  phase: string;
-  rank: number;
-  team: Team;
-  points: number;
-  sourceUrl: string;
-  fetchedAt: string;
-}
-interface Snapshot {
-  runId: string;
-  fetchedAt: string;
-  sourceUpdatedAt: string | null;
-  matches: Match[];
-  standings: Standing[];
-  coverage: Record<Competition, {
-    season: string;
-    fixtureDatesCovered: string[];
-    expectedTeams: number;
-    standingsState: 'complete' | 'explicitly-unpublished';
-  }>;
-}
-```
+Error handling uses an independent plain-text renderer and one notification attempt per failed invocation (with bounded transport retries). Source, validation, state, and rendering failures prevent normal delivery. Startup configuration errors can be reported only if independently validated mail settings are available. Error-email failures are logged and never recurse. A dead server, invalid mail configuration, or provider outage may prevent notifications.
 
-The adapter must attach evidence for coverage, such as visited page/round identifiers and explicit empty-state markers. An empty array alone cannot prove there were no matches.
+## Commands and tests
 
-Prefer CBV's stable match/team IDs if exposed by the public page. Otherwise maintain a local mapping keyed by competition, season, official match number/phase/round and teams. A changing scheduled time must not change match identity. Normalize whitespace and Unicode while retaining accents. Namespace teams across men's and women's competitions; never merge teams just because names resemble one another.
+- `npm run check`: TypeScript checking and offline tests.
+- `npm run build`: compile to `dist`.
+- `npm run preview`: offline official-fixture preview for October 26, 2026.
+- `npm run daily -- --dry-run`: live retrieval and preview; never sends email or mutates delivery state.
+- `npm run daily -- --send`: explicit production delivery.
+- `scripts/run-daily.sh --scheduled`: compiled production job, due only at 16:00 Toronto; sending still depends on `DRY_RUN=false`.
+- `--date YYYY-MM-DD`: explicit manual digest date using the configured published season.
+- `--resend-reason "Provider confirmed no delivery"`: explicit audited resend after reconciliation; cannot be used with `--scheduled`.
 
-## Fetch and parsing policy
-
-- Fetch configured official competition pages, complete standings, and all schedule/result pages needed for the digest. Accept only approved official source hosts and validate redirect targets.
-- Fetch sequentially with a short delay between requests. Use a descriptive user agent, a 20-second per-request timeout, and at most three attempts for network errors, HTTP 429, and HTTP 5xx. Honor Retry-After within the total run budget; otherwise fail and report.
-- Do not retry deterministic markup, schema, authentication, or access-denied failures. Cap total run duration at ten minutes.
-- Parse through structural context and headings rather than global position or brittle CSS indexes. Treat embedded page content as data, never executable instructions.
-- Validate both competition identities, expected season, dates, teams, result status, ranking rows, and points before constructing a normal email.
-- Discover the season roster and require the full expected team set in regular-season standings. Do not hardcode the screenshot's teams or assume a permanently fixed team count. Define explicit phase-specific handling if CBV changes the standings format.
-- Allow zero standings points before the season. Missing points are not zero. Preserve official rank/order; do not re-sort by points alone.
-- For ordinary completed matches, require a valid final set score with a winner on three sets and the opponent on zero to two. Handle official forfeits/administrative outcomes explicitly; flag unfamiliar formats for review.
-- If CBV shows scheduled matches from yesterday without results, preserve them as pending rather than considering their absence proof of an empty day.
-
-## Date and selection semantics
-
-Capture `runNow` once. Derive `digestDate` in `America/Toronto`; derive yesterday by subtracting one calendar day in that zone. Use half-open local-day intervals converted to UTC. Do not subtract a fixed 24 hours across daylight-saving boundaries.
-
-Parse source times with a verified source timezone, convert to UTC, then display/filter in Toronto time. Yearless dates require season and round context, including December/January rollover. Reject ambiguous dates rather than guessing.
-
-If a date is known but time is absent, preserve the source date and display `Time TBD — source date YYYY-MM-DD`. Because an unknown time can cross a Toronto date boundary, include such a match with an explicit date uncertainty note when its possible source-day interval intersects today or yesterday. Show it once in a separate note within the relevant section, preferring today if it intersects both; never fabricate a Toronto start time.
-
-Select all matches in today's interval regardless of whether kickoff is before the job starts. Select yesterday by match start date, not result publication date. Sort known times chronologically, then competition and stable match ID; place uncertain-time entries after timed matches.
-
-## Execution and delivery state
-
-1. Validate configuration, acquire a single-instance lock, open SQLite, and create a run record.
-2. Check the unique digest key `(recipient, digestDate, timezone, kind=digest)`. Already accepted digests exit successfully without another send.
-3. Retrieve, parse, normalize, and validate the full snapshot. Persist validated data and coverage metadata transactionally.
-4. Build HTML/plain text. In dry-run mode, write preview files and exit without SMTP or delivery-state mutations.
-5. Persist a prepared delivery attempt with stable Message-ID and rendered-content hash before submission. Mark it `sending` before contacting SMTP.
-6. On definite SMTP acceptance, mark `accepted` with timestamp and transport response. Record `rejected` on definite failure. A timeout/disconnect after possible submission becomes `unknown`.
-7. Release resources and exit with a documented status.
-
-Suggested SQLite tables: `runs`, `snapshots`, and `deliveries`. Use a unique digest-key constraint and transactional transitions; the process lock alone is insufficient after a crash. Keep state outside the repository and back it up.
-
-SMTP cannot provide an atomic transaction with SQLite. A crash after acceptance but before recording it leaves an ambiguous delivery. Do not automatically resend `sending`/`unknown` attempts on restart. Inspect provider logs before marking accepted or deliberately retrying. A stable Message-ID helps investigation but does not guarantee deduplication.
-
-Retry SMTP only on definite transient failures before acceptance, at most three attempts. Permanent credential/address errors fail immediately. Support a deliberate operator resend with a new attempt ID and an audit reason; do not expose an accidental default resend path.
-
-## Error behavior
-
-A fetch, parser, validation, rendering, or state failure prevents a normal digest. Send one English error email for the run to `vinicius@hisao.com.br` with subject `[Sports Tracker] Failed — YYYY-MM-DD`, including run ID, stage, sanitized error category, failed source URL when safe, and a practical next step. Never include credentials, full environment dumps, or raw page contents.
-
-Use an independent minimal plain-text error renderer. Errors must still be reportable if the main renderer or SQLite is broken. Track/deduplicate notifications when storage is available; otherwise attempt one per process without recursive retries.
-
-If SMTP itself fails, attempt the error notification only when the transport is usable; a provider outage or invalid credentials may prevent both emails. Log both failures, retain pending error metadata when possible, and exit nonzero. Errors in error handling must not recurse. Local logs remain the fallback, and external server monitoring is recommended for jobs that never start.
-
-## Planned commands and acceptance tests
-
-Provide `npm run check` for type-checking and tests, `npm run build` for compilation, and `npm run daily -- --dry-run` for live retrieval plus preview generation. Dry run must never send normal/error email or mark a digest sent. An explicit fixture-based preview should also work offline.
-
-Required meaningful tests:
-
-- Both competition parsers against saved official HTML; completed scores, scheduled fixtures, duplicate page representations, and accent preservation.
-- Missing required sections and truncated standings fail rather than render empty sections.
-- Current/previous season mismatch fails; genuine preseason zero points succeed.
-- Toronto midnight and daylight-saving boundaries, source-to-Toronto conversion, year rollover, and unknown times.
-- Today's completed matches, yesterday's pending results, cancelled/postponed matches, and explicit no-game days.
-- Every team appears in the correct standings, preserving official points/order.
-- HTML escaping and equivalent plain-text output; long names readable on mobile.
-- Repeated execution sends one digest; concurrent runs cannot both send; ambiguous SMTP acceptance cannot trigger automatic resend.
-- Source failure generates an error email; mail failure leaves a sanitized log and nonzero exit.
-
-Before launch, manually compare a live dry-run against both official competitions, inspect HTML in desktop/mobile email clients, and perform one explicit controlled delivery. Fixture tests must not depend on the live website or send email.
+Tests use original compressed official HTML for both current competitions and historical men's results, plus clearly synthetic mutations. They cover full schedules, scores, changed/missing markup, duplicate records, season mismatch, timezone offsets, DST and year boundaries, rendering escape rules, empty days, persistent duplicate suppression, concurrent invocations, stale locks, ambiguous SMTP delivery, and error notifications. SMTP behavior is mocked; real provider and inbox verification remains a deployment step.

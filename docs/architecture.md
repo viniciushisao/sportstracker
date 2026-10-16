@@ -80,9 +80,9 @@ Body order:
 
 Use a simple single-column layout, clear headings, ample spacing, and readable text similar to the reference. Support light and dark email clients without relying on a dark background. Tables must fit mobile screens; no scripts, remote fonts, or required images. A plain-text alternative must preserve all content.
 
-Empty states: `No games scheduled today.` and `No games yesterday.` are permitted only after successful source and coverage validation. Standings unavailable before publication may be shown as `Not yet published by CBV` only when explicitly confirmed on the source. A blank table or missing selector is a failure.
+Empty states: `No games scheduled today.` and `No games yesterday.` are permitted only after successful source and coverage validation. The current adapter requires complete published standings; unpublished or blank tables and missing selectors are failures. An explicit unpublished-state adapter can be added once verified against CBV markup.
 
-Today's section includes matches earlier than 16:00 and matches still to come. Cancelled/postponed games retain their status when CBV identifies their original date. A rescheduled fixture belongs to its new confirmed date; do not duplicate it under the old date. During playoffs, show CBV's published standings with its phase label, even if the table remains the regular-season ranking.
+Today's section includes matches earlier than 16:00 and matches still to come. Postponed games retain the source status and published date. Cancelled fixtures removed from the source cannot currently be reconstructed. A rescheduled fixture belongs to its new confirmed date; do not duplicate it under the old date. During playoffs, show CBV's published standings with its phase label, even if the table remains the regular-season ranking.
 
 ## Scope and tradeoffs
 
