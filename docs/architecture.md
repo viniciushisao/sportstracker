@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide one concise daily email about Brazil's Superliga A, based on CBV's published website data. Replace manual checks of schedules, results, and standings with a scheduled job on the owner's server.
+Provide one concise daily email about Brazil's Superliga A, based on CBV's published website data. Replace manual checks of schedules, results, and standings with a scheduled job on the owner's existing A2 Hosting Basic plan.
 
 ## Confirmed requirements
 
@@ -14,7 +14,7 @@ Provide one concise daily email about Brazil's Superliga A, based on CBV's publi
 | Schedule | Every day at 16:00, `America/Toronto`, including daylight-saving changes |
 | Language | English; retain official Portuguese team names |
 | Content | Today's games, yesterday's results, men's standings, women's standings |
-| Hosting | Owner's server, scheduled with cron |
+| Hosting | Existing A2 Hosting Basic plan, scheduled with cron; account capabilities pending verification |
 | Failures | Send an error notification to the same recipient |
 | Deliverables | High-level architecture and implementation specification in this repository |
 

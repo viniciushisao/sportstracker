@@ -2,6 +2,21 @@
 
 This guide describes the intended deployment after implementation. There is currently no runnable service or cron wrapper in the repository.
 
+## Hosting target
+
+Deploy to the owner's existing **A2 Hosting Basic plan**. GitHub remains the source repository and can run automated checks; production scheduling belongs on A2 Hosting.
+
+The provider and plan are selected, but compatibility has not yet been verified in the account. Before deployment, confirm:
+
+- A supported Node.js runtime executable from cron and a way to deploy/build the application.
+- Cron access and a verified way to schedule 16:00 America/Toronto across daylight-saving changes.
+- Writable persistent storage and compatibility with the selected SQLite driver.
+- Outbound HTTPS access to CBV and TLS connections to the chosen SMTP provider.
+- Memory and execution limits sufficient for the job.
+- Browser automation support only if CBV requires JavaScript rendering.
+
+Inspect the account's Node.js, Cron Jobs, and Terminal/SSH features, then validate the runtime with a dry run. Do not assume root access or that the account can change the server timezone. If a requirement is unavailable, document the limitation before choosing an alternative or upgrading.
+
 ## Configuration
 
 Keep secrets in a server-owned environment file readable only by the service account. Do not commit SMTP credentials, the recipient's runtime delivery history, raw snapshots, or email previews.
@@ -27,7 +42,7 @@ The adapter configuration must also record verified games/results/standings URLs
 
 ## Deployment sequence
 
-1. Select the server OS, supported Node.js LTS release, package versions, and SMTP provider. Verify a sender and the provider's domain authentication requirements.
+1. Verify the A2 Hosting Basic account against the requirements above. Identify the host OS and available supported Node.js LTS release, then select compatible package versions and an SMTP provider. Verify a sender and the provider's domain authentication requirements.
 2. Implement and verify the modules and tests in the implementation specification. Add the actual package scripts and production wrapper before using the commands below.
 3. Deploy an immutable build under `/opt/sportstracker`, owned by a dedicated service account. Install locked dependencies and compile TypeScript during deployment, not every scheduled run.
 4. Provision writable state/log directories and restrictive configuration permissions. Ensure time synchronization and timezone data are maintained.
@@ -44,7 +59,7 @@ CRON_TZ=America/Toronto
 0 16 * * * /opt/sportstracker/scripts/run-daily.sh >> /var/log/sportstracker/cron.log 2>&1
 ```
 
-The wrapper must set an explicit working directory and executable paths, securely load the environment, acquire a lock, apply a ten-minute total execution budget, invoke the compiled job, and preserve its exit status. Proposed paths are deployment conventions, not existing files. Do not place credentials directly in crontab.
+The wrapper must set an explicit working directory and executable paths, securely load the environment, acquire a lock, apply a ten-minute total execution budget, invoke the compiled job, and preserve its exit status. Proposed paths are deployment conventions, not existing files. On A2 Hosting, replace `/opt/sportstracker`, `/var/lib/sportstracker`, and `/var/log/sportstracker` with private, writable paths under the hosting account home directory when system directories are unavailable; keep configuration and state outside the public web directory. Use the hosting account user if a dedicated service account cannot be created. Do not place credentials directly in crontab.
 
 `CRON_TZ` support must be checked on the actual server. Setting Node's `TZ` or the application's `TIMEZONE` does not change cron's scheduling timezone. If the cron implementation lacks timezone support, use a Toronto-configured host or an every-minute cron entry plus an application due-time gate evaluated in `America/Toronto`; the gate must allow only the 16:00 invocation and use the daily delivery key to prevent duplicates. Verify DST behavior on the deployed scheduler rather than replacing Toronto with a fixed UTC offset.
 
@@ -75,8 +90,8 @@ A source error can be emailed while the provider is healthy. A server outage or 
 ## Remaining launch decisions
 
 - SMTP provider, verified sender, and credentials.
-- Server OS, cron implementation, deployment account, and exact paths.
+- A2 Hosting Basic capability checks, host OS, cron implementation, deployment account, and account-writable paths.
 - Verified CBV source timezone, final-result markup, complete schedule coverage, and men's standings navigation.
 - Runtime and dependency versions, and whether browser rendering is necessary.
 
-The recipient, 16:00 Toronto schedule, English language, CBV scraping, and men's/women's coverage are already settled.
+The recipient, 16:00 Toronto schedule, English language, CBV scraping, men's/women's coverage, and A2 Hosting Basic as the deployment target are already settled.

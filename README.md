@@ -2,7 +2,7 @@
 
 Technical design for a Node.js/TypeScript job that scrapes the official Brazilian Volleyball Confederation (CBV) website and emails a daily Superliga digest.
 
-The digest covers all men's and women's Superliga A teams: today's matches, yesterday's results, and complete standings for each competition. It is written in English and sent to `vinicius@hisao.com.br` every day at **4:00 PM America/Toronto**, using cron on the owner's server.
+The digest covers all men's and women's Superliga A teams: today's matches, yesterday's results, and complete standings for each competition. It is written in English and sent to `vinicius@hisao.com.br` every day at **4:00 PM America/Toronto**, using cron on the owner's existing **A2 Hosting Basic plan**. Account compatibility must be verified before deployment.
 
 ## Documentation
 
