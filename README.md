@@ -2,7 +2,7 @@
 
 A Node.js/TypeScript job that scrapes the official CBV website and emails today's games, yesterday's results, and complete men's and women's Superliga A standings to `vinicius@hisao.com.br`.
 
-Production target: the owner's **A2 Hosting Basic plan**, using cron at **4:00 PM America/Toronto**. Emails are in English, with Toronto match times and official Portuguese team names. Hosting compatibility and SMTP setup still need verification before deployment.
+Production target: the owner's **A2 Hosting Basic plan**, using cron at **4:00 PM America/Toronto**. Emails are in English, with Toronto match times and official Portuguese team names. Deployment was verified on A2 on October 19, 2026; see the operations log below.
 
 ## Run locally
 
@@ -41,7 +41,7 @@ npm run daily -- --send
 ## Behavior
 
 - Retrieves CBV's public HTML; parses embedded page data as JSON, without executing website scripts or using a sports API.
-- Checks season, competition, complete standings, all regular-season pairings, match IDs, timestamps, and scores before sending.
+- Checks season, competition, complete standings, all pairings in each published regular-season leg, match IDs, timestamps, and scores before sending.
 - Generates HTML and plain-text email, including empty-day messages and pending results.
 - Uses SQLite and a process lock to prevent concurrent or repeated daily sends.
 - Sends sanitized failure notifications when email configuration is usable. Uncertain SMTP delivery requires operator review before retrying.
@@ -59,4 +59,4 @@ npm run daily -- --send
 
 The implementation has been tested against saved official current-season and historical HTML, and a live dry-run verified **132 matches and 12 standings rows per competition**. Tests cover parser failures, Toronto daylight-saving boundaries, rendering, delivery-state recovery, concurrent jobs, and error notifications. GitHub Actions runs checks only; it does not send email or schedule production jobs.
 
-No production email has been sent, no A2 account settings have been changed, and no cron schedule has been installed. Select a verified sender and configure SMTP privately on A2 before launch. Browser automation is not required for the inspected CBV pages.
+The A2 deployment and active cron schedule were inspected on October 19, 2026. A parser fix now accepts a complete first leg while CBV has not published the return leg. All 40 tests pass, and a live server preview validated 66 matches and 12 standings rows per competition. No manual email was sent during this repair. See `docs/operations.md` for current deployment details.

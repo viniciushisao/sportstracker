@@ -2,7 +2,7 @@
 
 ## Hosting target and prerequisites
 
-Use the owner's existing **A2 Hosting Basic plan**. GitHub stores the source and runs checks. A2 executes the daily production job through cron. The account has not yet been inspected, and nothing has been deployed or scheduled there.
+Use the owner's existing **A2 Hosting Basic plan**. GitHub stores the source and runs checks. A2 executes the daily production job through cron. The live deployment was inspected and repaired on October 19, 2026 (details below).
 
 Before launch, verify:
 
@@ -130,3 +130,16 @@ SMTP acceptance is not an inbox guarantee. Provider outages, invalid credentials
 2. Configure SMTP provider and verified sender privately.
 3. Run the compiled preview and controlled delivery on A2; inspect desktop/mobile inbox rendering.
 4. Enable one cron schedule, observe the first scheduled run, and configure backups/log rotation.
+
+## October 19, 2026 repair
+
+- Live app: `/home/vsuzukic/sportstracker`; Node: `/opt/alt/alt-nodejs22/root/usr/bin/node` (22.23.3).
+- Existing cron runs hourly at minute zero with `--scheduled`; the app gate performs work at 16:00 America/Toronto. `DRY_RUN=false`.
+- October 17–18 runs failed with `COVERAGE` because CBV published only the complete men's first leg. The inspected cron log had no October 16 run. Failure notifications were accepted by SMTP; inbox delivery was not checked.
+- Parser now requires every pairing exactly once in the first leg, and also in the return leg when present. Missing or duplicate matches still fail. The digest explains first-leg-only coverage and rejects dates after that published schedule.
+- Backup before repair: `/home/vsuzukic/private/sportstracker/backup-20261019074214`.
+- Source and compiled file hashes on A2 matched the locally tested implementation. All 40 local tests passed; live A2 preview on October 19 validated 66 matches and 12 teams for each competition.
+- SMTP connection and authentication were verified successfully without sending an email.
+- No manual digest or historical resend was performed during this repair.
+
+Earlier launch instructions above are retained as setup/recovery guidance, not a statement that the app is undeployed.

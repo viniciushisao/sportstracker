@@ -50,3 +50,23 @@ test('invalid score fails; live and postponed status preserved', () => {
   assert.equal(delayed.matches[0]!.status, 'postponed');
 });
 test('missing points are not interpreted as zero', () => assert.throws(() => parse(fixture('men'), modifiedPage('standings', d => delete d.teams[0].points)), /standings/));
+
+test('accepts a complete first leg before CBV publishes the return leg', () => {
+  const html = modifiedPage('games', d => {
+    for (const key of Object.keys(d.matchesByRound)) if (key.startsWith('RETURNO')) delete d.matchesByRound[key];
+  });
+  assert.equal(parse(html).matches.length, 66);
+});
+test('rejects partial first and return legs', () => {
+  for (const prefix of ['TURNO', 'RETURNO']) {
+    const html = modifiedPage('games', d => d.matchesByRound[`${prefix} - RODADA 1`].pop());
+    assert.throws(() => parse(html), /schedule is missing/);
+  }
+});
+test('rejects duplicated pairings with different match IDs', () => {
+  const html = modifiedPage('games', d => {
+    const round = d.matchesByRound['TURNO - RODADA 1'];
+    round[1] = { ...round[0], ChampionshipMatch_ID: round[1].ChampionshipMatch_ID };
+  });
+  assert.throws(() => parse(html), /schedule is missing/);
+});

@@ -111,10 +111,14 @@ export function parseCompetition(gamesHtml: string, standingsHtml: string, compe
   const games = [...matches.values()];
   const gameTeams = new Set(games.flatMap(m => [m.home.id, m.away.id]));
   assert(gameTeams.size === roster.size && [...gameTeams].every(t => roster.has(t)), 'ROSTER', 'Schedule and standings rosters differ.');
-  // Current Superliga A publishes a full home-and-away regular season. Refuse truncated previews.
+  // CBV may publish the complete first leg before publishing the return leg.
+  // Every published leg must contain every unordered pairing exactly once.
   const regular = games.filter(m => /^(?:TURNO|RETURNO) - RODADA \d+$/.test(m.phase));
-  const pairings = new Set(regular.map(m => `${m.phase.startsWith('RETURNO') ? 'return' : 'first'}|${[m.home.id, m.away.id].sort().join('|')}`));
-  assert(regular.length === roster.size * (roster.size - 1) && pairings.size === regular.length, 'COVERAGE', 'Full home-and-away schedule is missing or duplicated.');
+  const first = regular.filter(m => m.phase.startsWith('TURNO'));
+  const second = regular.filter(m => m.phase.startsWith('RETURNO'));
+  const completeLeg = (leg: Match[]) => leg.length === roster.size * (roster.size - 1) / 2
+    && new Set(leg.map(m => [m.home.id, m.away.id].sort().join('|'))).size === leg.length;
+  assert(completeLeg(first) && (second.length === 0 || completeLeg(second)), 'COVERAGE', 'Published schedule is missing or duplicated.');
   const sourceUpdatedAt = typeof tables[0]!.lastUpdated === 'string' ? tables[0]!.lastUpdated : null;
-  return { competition, season, championshipId, matches: games, standings, sourceUrl, standingsUrl, sourceUpdatedAt, rounds };
+  return { competition, season, championshipId, matches: games, standings, sourceUrl, standingsUrl, sourceUpdatedAt, rounds, firstLegOnly: second.length === 0 };
 }
