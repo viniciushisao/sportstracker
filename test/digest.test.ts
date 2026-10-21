@@ -7,8 +7,8 @@ import { snapshot } from './helpers.js';
 const base = snapshot();
 test('reference date includes both competitions and all standings', () => {
   const email = render(base, { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' });
-  assert.match(email.text, /6:00 PM — MONTES CLAROS/);
-  assert.match(email.text, /8:00 PM — NORDE/);
+  assert.match(email.text, /7:00 PM BRT \(UTC−3\) — MONTES CLAROS/);
+  assert.match(email.text, /9:00 PM BRT \(UTC−3\) — NORDE/);
   assert.match(email.text, /SANCOR SEGUROS VOLEI/);
   for (const c of base.competitions) for (const team of c.standings) assert.ok(email.text.includes(team.team.name));
   assert.match(email.text, /America\/Toronto/);
@@ -56,4 +56,36 @@ test('first-leg-only digest explains coverage and rejects dates beyond publicati
   const config = { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' };
   assert.match(render(s, config).text, /first-leg schedule only/);
   assert.throws(() => render(s, { ...config, date: '2027-06-01' }), /beyond the published/);
+});
+
+test('round labels count both legs and preserve playoff phases', () => {
+  for (const [phase, expected] of [['TURNO - RODADA 8', 'Round 8/22'], ['RETURNO - RODADA 8', 'Round 19/22'], ['SEMIFINAL', 'SEMIFINAL']]) {
+    const s = structuredClone(base);
+    Object.assign(s.competitions[0]!.matches[0]!, { phase, startsAt: '2026-10-26T14:00:00Z' });
+    const email = render(s, { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' });
+    assert.ok(email.html!.includes(expected!));
+    assert.ok(email.text.includes(expected!));
+  }
+});
+test('standings include played, won, lost and points in both formats', () => {
+  const s = structuredClone(base);
+  Object.assign(s.competitions[0]!.standings[0]!, { played: 22, wins: 17, losses: 5, points: 54 });
+  const email = render(s, { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' });
+  assert.match(email.text, /T 22 · W 17 · L 5 · P 54/);
+  for (const label of ['T', 'W', 'L', 'P']) assert.ok(email.html!.includes(`>${label}</th>`));
+});
+
+test('today shows escaped broadcasters, missing details and converted BRT times', () => {
+  const s = structuredClone(base);
+  const match = s.competitions[0]!.matches[0]!;
+  Object.assign(match, { startsAt: '2026-10-26T22:00:00Z', broadcasters: ['SporTV 2', '<TV>'] });
+  const config = { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' };
+  const email = render(s, config);
+  assert.match(email.text, /7:00 PM BRT \(UTC−3\)/);
+  assert.match(email.text, /Watch: SporTV 2, <TV>/);
+  assert.match(email.html!, /SporTV 2, &lt;TV&gt;/);
+  match.broadcasters = [];
+  assert.match(render(s, config).text, /Watch: Not announced/);
+  match.startsAt = '2026-10-27T03:00:00Z';
+  assert.match(render(s, config).text, /Oct 27 · 12:00 AM BRT/);
 });

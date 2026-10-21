@@ -70,3 +70,28 @@ test('rejects duplicated pairings with different match IDs', () => {
   });
   assert.throws(() => parse(html), /schedule is missing/);
 });
+
+test('preserves published standings statistics and rejects missing values', () => {
+  const data = parseCompetition(fixture('history'), fixture('history-standings'), 'men', '2025-2026', menUrl, menUrl + '/classificacao');
+  const row = data.standings[0]!;
+  assert.deepEqual([row.played, row.wins, row.losses, row.points], [22, 17, 5, 54]);
+  for (const field of ['matches', 'wins', 'losses']) {
+    assert.throws(() => parse(fixture('men'), modifiedPage('standings', d => delete d.teams[0][field])), /standings/);
+  }
+});
+
+test('reads broadcast names and tolerates absent channel metadata', () => {
+  assert.deepEqual(competition().matches[0]!.broadcasters, ['SporTV 2']);
+  const html = modifiedPage('games', d => {
+    const match = d.matchesByRound['TURNO - RODADA 1'][0];
+    delete match.custom_data;
+    match.channel = { Denomination: 'GE TV' };
+  });
+  assert.deepEqual(parse(html).matches[0]!.broadcasters, ['GE TV']);
+  const missing = modifiedPage('games', d => {
+    const match = d.matchesByRound['TURNO - RODADA 1'][0];
+    delete match.custom_data;
+    match.channel = '$undefined';
+  });
+  assert.deepEqual(parse(missing).matches[0]!.broadcasters, []);
+});

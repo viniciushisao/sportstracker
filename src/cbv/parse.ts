@@ -41,10 +41,13 @@ const rawMatch = z.object({
   MatchDateTime: z.string().regex(/T.*(?:Z|[+-]\d{2}:\d{2})$/),
   WonSetHome: z.number().int().min(0).max(3), WonSetGuest: z.number().int().min(0).max(3),
   postponed: z.boolean(), isLive: z.boolean(), isFinished: z.boolean(),
+  custom_data: z.object({ sge_transmission_names: z.array(name).nullish() }).nullish(),
+  channel: z.object({ Denomination: name.nullish() }).nullish().catch(null),
   HomeDisqualification: z.boolean(), GuestDisqualification: z.boolean(),
 });
 const rawStanding = z.object({ teamId: z.string().regex(/^\d+$/), teamName: name,
-  position: z.number().int().positive(), points: z.number().int(), matches: z.number().int().nonnegative() });
+  position: z.number().int().positive(), points: z.number().int(), matches: z.number().int().nonnegative(),
+  wins: z.number().int().nonnegative(), losses: z.number().int().nonnegative() });
 
 function validateIdentity(html: string, competition: Competition, season: string): void {
   const $ = load(html); $('script,style').remove();
@@ -87,7 +90,10 @@ export function parseCompetition(gamesHtml: string, standingsHtml: string, compe
         assert(!(raw.isLive && finished), 'STATUS', 'Contradictory match status.');
         championshipIds.add(raw.Championship_ID);
         const prefix = `${competition}:${season}:`;
-        const match: Match = { id: prefix + raw.ChampionshipMatch_ID, competition, season, phase: raw.RoundType,
+        const names = raw.custom_data?.sge_transmission_names;
+        const broadcasters = [...new Set((names?.length ? names : raw.channel?.Denomination ? [raw.channel.Denomination] : [])
+          .map(value => value.normalize('NFC').replace(/\s+/g, ' ')))];
+        const match: Match = { id: prefix + raw.ChampionshipMatch_ID, competition, season, phase: raw.RoundType, broadcasters,
           home: { id: prefix + raw.HomeTeam_ID, name: raw.HomeTeam.normalize('NFC').replace(/\s+/g, ' ') },
           away: { id: prefix + raw.GuestTeam_ID, name: raw.GuestTeam.normalize('NFC').replace(/\s+/g, ' ') },
           startsAt: time.toUTC().toISO()!, status: raw.postponed ? 'postponed' : finished ? 'finished' : raw.isLive ? 'live' : 'scheduled',
@@ -105,7 +111,7 @@ export function parseCompetition(gamesHtml: string, standingsHtml: string, compe
   assert(tables.length === 1, 'STANDINGS', 'Expected complete standings for the schedule championship.');
   const parsed = z.array(rawStanding).safeParse(tables[0]!.teams);
   assert(parsed.success && parsed.data.length >= 2, 'STANDINGS', 'Invalid or empty standings.');
-  const standings = parsed.data.map(row => ({ rank: row.position, team: { id: `${competition}:${season}:${row.teamId}`, name: row.teamName.normalize('NFC').replace(/\s+/g, ' ') }, points: row.points }));
+  const standings = parsed.data.map(row => ({ rank: row.position, team: { id: `${competition}:${season}:${row.teamId}`, name: row.teamName.normalize('NFC').replace(/\s+/g, ' ') }, points: row.points, played: row.matches, wins: row.wins, losses: row.losses }));
   const roster = new Set(standings.map(r => r.team.id));
   assert(roster.size === standings.length && standings.every((s, i) => s.rank === i + 1), 'STANDINGS', 'Duplicate teams or incomplete ranking positions.');
   const games = [...matches.values()];
