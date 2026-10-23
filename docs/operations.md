@@ -214,3 +214,25 @@ daily duplicate-send protection as game emails. The existing 4 PM schedules
 remain unchanged. No additional monitoring service or test-runner installation
 is needed. Checks describe parser/source health, not a guarantee of source
 completeness, inbox delivery, or real-time venue changes.
+
+## October 23, 2026 deployment
+
+- Deployed feature commit `a75f052` to `/home/vsuzukic/sportstracker` from origin/main.
+- Backed up the previous compiled build, manifests, commit and cron at
+  `/home/vsuzukic/private/sportstracker/backup-20261023180222`.
+- All 72 tests passed on A2 with `--test-concurrency=1`. Parallel test workers
+  were killed by hosting limits. Build succeeded with `GOMAXPROCS=2 npm run build`
+  after the unrestricted compiler exceeded available process/thread resources.
+- Both compiled saved-example parser health checks passed on A2.
+- University live dry-run validated 12 U of T men's, 15 U of T women's, 16 TMU
+  men's and 13 TMU women's confirmed home fixtures.
+- Superliga live validation correctly failed with COVERAGE: the men's published
+  return round 2 currently contains five matches rather than six. The first leg
+  is complete, but the return leg is incomplete. The existing validation remains
+  enforced; scheduled runs report failure rather than falsely claiming all-clear.
+- Preserved the existing hourly Superliga cron and added exactly one hourly
+  university cron with `--university --scheduled`. Both application gates run
+  only at 16:00 America/Toronto; DRY_RUN=false was verified.
+- University state is independent at
+  `/home/vsuzukic/private/sportstracker/state.sqlite.university`.
+- No manual email or historical resend was performed during deployment.

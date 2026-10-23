@@ -85,9 +85,9 @@ previews show the daily health report and identify offline fixture mode. Fixture
 The job reuses existing SMTP settings and `EMAIL_TO`. `UNIVERSITY_SEASON` defaults
 to `2026-2027`. It has separate state/locking and delivery keys from Superliga.
 
-Production activation requires deploying the build and adding the university cron
-entry in [operations](docs/operations.md#university-home-volleyball-reminders).
-Adding this code does not change the existing server schedule.
+Both production cron entries were activated on A2 on October 23, 2026.
+See [operations](docs/operations.md#october-23-2026-deployment) for validation results
+and the current CBV source coverage issue.
 
 ## Daily no-game health emails
 
