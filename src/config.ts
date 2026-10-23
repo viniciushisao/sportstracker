@@ -3,14 +3,14 @@ import { DateTime, IANAZone } from 'luxon';
 import { JobError } from './errors.js';
 
 export interface Config {
-  dryRun: boolean; scheduled: boolean; date: string; timezone: string; season: string;
+  university: boolean; universitySeason: string; dryRun: boolean; scheduled: boolean; date: string; timezone: string; season: string;
   recipient: string; errorRecipient: string; sender: string; smtpHost: string; smtpPort: number;
   smtpSecure: boolean; smtpUser: string; smtpPass: string; statePath: string; outputDir: string;
   fixtureDir?: string; urls: { men: string; women: string }; now: DateTime;
   resendReason?: string;
 }
 export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTime.now()): Config {
-  const flags = new Set(['--dry-run', '--send', '--scheduled']);
+  const flags = new Set(['--dry-run', '--send', '--scheduled', '--university']);
   const values = new Set(['--date', '--fixtures', '--output', '--resend-reason']);
   const options: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
@@ -19,7 +19,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTim
     else if (values.has(arg) && args[i + 1] && !args[i + 1]!.startsWith('--')) options[arg] = args[++i]!;
     else throw new JobError('CONFIG', 'Unknown argument or missing option value.', 'configuration');
   }
-  const timezone = env.TIMEZONE || 'America/Toronto';
+  const timezone = options['--university'] ? 'America/Toronto' : env.TIMEZONE || 'America/Toronto';
   if (!IANAZone.isValidZone(timezone)) throw new JobError('CONFIG', 'Invalid TIMEZONE.', 'configuration');
   const date = options['--date'] || now.setZone(timezone).toISODate()!;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !DateTime.fromISO(date, { zone: timezone }).isValid)
@@ -34,14 +34,18 @@ export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTim
   if (options['--fixtures'] && !dryRun) throw new JobError('CONFIG', 'Fixtures can only be used in dry-run mode.', 'configuration');
   if (options['--scheduled'] && (options['--date'] || options['--resend-reason'])) throw new JobError('CONFIG', 'Scheduled runs cannot override dates or resend.', 'configuration');
   const season = env.CBV_SEASON || '2026-2027';
-  if (!/^20\d{2}-20\d{2}$/.test(season) || Number(season.slice(5)) !== Number(season.slice(0, 4)) + 1)
+  if (!options['--university'] && (!/^20\d{2}-20\d{2}$/.test(season) || Number(season.slice(5)) !== Number(season.slice(0, 4)) + 1))
     throw new JobError('CONFIG', 'Invalid CBV_SEASON.', 'configuration');
+  const universitySeason = env.UNIVERSITY_SEASON || '2026-2027';
+  if (options['--university'] && (!/^20\d{2}-20\d{2}$/.test(universitySeason) || Number(universitySeason.slice(5)) !== Number(universitySeason.slice(0, 4)) + 1))
+    throw new JobError('CONFIG', 'Invalid UNIVERSITY_SEASON.', 'configuration');
   const config: Config = {
+    university: !!options['--university'], universitySeason,
     dryRun, scheduled: !!options['--scheduled'], date, timezone, season, now,
     recipient: env.EMAIL_TO || 'vinicius@hisao.com.br', errorRecipient: env.ERROR_EMAIL_TO || env.EMAIL_TO || 'vinicius@hisao.com.br',
     sender: env.EMAIL_FROM || '', smtpHost: env.SMTP_HOST || '', smtpPort: Number(env.SMTP_PORT || 587),
     smtpSecure: boolean('SMTP_SECURE', false), smtpUser: env.SMTP_USER || '', smtpPass: env.SMTP_PASS || '',
-    statePath: resolve(env.STATE_DB_PATH || 'data/state.sqlite'), outputDir: resolve(options['--output'] || 'output'),
+    statePath: resolve(options['--university'] ? env.UNIVERSITY_STATE_DB_PATH || `${env.STATE_DB_PATH || 'data/state.sqlite'}.university` : env.STATE_DB_PATH || 'data/state.sqlite'), outputDir: resolve(options['--output'] || (options['--university'] ? 'output/university' : 'output')),
     fixtureDir: options['--fixtures'], resendReason: options['--resend-reason'],
     urls: { men: env.CBV_MEN_URL || 'https://cbv.com.br/volei-de-quadra/superliga-a-masculina', women: env.CBV_WOMEN_URL || 'https://cbv.com.br/volei-de-quadra/superliga-a-feminina' },
   };

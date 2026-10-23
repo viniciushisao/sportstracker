@@ -12,7 +12,9 @@
     "test": "node --experimental-sqlite --import tsx --test test/*.test.ts",
     "daily": "node --experimental-sqlite --import tsx src/main.ts",
     "preview": "node --experimental-sqlite --import tsx src/main.ts --dry-run --fixtures test/fixtures/cbv --date 2026-10-26",
-    "start": "node --experimental-sqlite dist/main.js"
+    "start": "node --experimental-sqlite dist/main.js",
+    "university": "node --experimental-sqlite --import tsx src/main.ts --university",
+    "preview:university": "npm run university -- --dry-run --fixtures test/fixtures/university --date 2026-10-30"
   },
   "dependencies": {
     "cheerio": "^1.0.0",

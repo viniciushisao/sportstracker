@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdir, writeFile, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import type { Email, Snapshot } from './types.js';
+import type { Email } from './types.js';
 import { JobError } from './errors.js';
 
 export async function acquireLock(path: string): Promise<(() => Promise<void>) | null> {
@@ -32,7 +32,7 @@ export class State {
   }
   start(runId: string, date: string) { this.db.prepare('INSERT INTO runs VALUES (?,?,?,?,NULL)').run(runId, date, new Date().toISOString(), 'running'); }
   finish(runId: string, status: string, code?: string) { this.db.prepare('UPDATE runs SET status=?, error_code=? WHERE id=?').run(status, code || null, runId); }
-  snapshot(runId: string, value: Snapshot) { this.db.prepare('INSERT INTO snapshots VALUES (?,?)').run(runId, JSON.stringify(value)); }
+  snapshot(runId: string, value: unknown) { this.db.prepare('INSERT INTO snapshots VALUES (?,?)').run(runId, JSON.stringify(value)); }
   disposition(key: string): 'new' | 'accepted' | 'ambiguous' {
     const rows = this.db.prepare('SELECT status FROM deliveries WHERE digest_key=?').all(key) as { status: DeliveryStatus }[];
     if (rows.some(r => ['sending', 'unknown', 'prepared'].includes(r.status))) return 'ambiguous';

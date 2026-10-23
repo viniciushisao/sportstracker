@@ -13,41 +13,41 @@ export function officialUrl(value: string): URL {
   assert(url.protocol === 'https:' && url.hostname === 'cbv.com.br' && !url.username && !url.password && (!url.port || url.port === '443'), 'SOURCE_URL', 'Source must use HTTPS on cbv.com.br.');
   return url;
 }
-export async function fetchHtml(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<string> {
-  officialUrl(url);
+export async function fetchHtml(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch, validateUrl: (value: string) => URL = officialUrl): Promise<string> {
+  validateUrl(url);
   for (let attempt = 0; attempt < 3; attempt++) {
     signal.throwIfAborted();
     let retryMs = 1000 * 2 ** attempt;
     try {
       let target = url;
       for (let redirects = 0; redirects <= 3; redirects++) {
-        officialUrl(target);
-        const response = await fetcher(target, { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]), headers: { 'user-agent': 'SportsTracker/1.0 (personal daily Superliga digest)', accept: 'text/html' } });
+        validateUrl(target);
+        const response = await fetcher(target, { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]), headers: { 'user-agent': 'SportsTracker/1.0 (personal daily sports digest)', accept: 'text/html' } });
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           const location = response.headers.get('location');
           await response.body?.cancel();
-          if (!location || redirects === 3) throw new JobError('REDIRECT', 'CBV redirect limit exceeded.', 'fetch');
+          if (!location || redirects === 3) throw new JobError('REDIRECT', 'Schedule redirect limit exceeded.', 'fetch');
           target = new URL(location, target).href; continue;
         }
         if (response.status === 429 || response.status >= 500) {
           const after = response.headers.get('retry-after');
           if (after) retryMs = /^\d+$/.test(after) ? Number(after) * 1000 : Math.max(0, Date.parse(after) - Date.now());
           await response.body?.cancel();
-          if (!Number.isFinite(retryMs) || retryMs > 60_000) throw new JobError('RATE_LIMIT', 'CBV requested a later retry; run again after recovery.', 'fetch');
+          if (!Number.isFinite(retryMs) || retryMs > 60_000) throw new JobError('RATE_LIMIT', 'Schedule source requested a later retry; run again after recovery.', 'fetch');
           break;
         }
-        if (!response.ok) { await response.body?.cancel(); throw new JobError('HTTP', `CBV returned HTTP ${response.status}.`, 'fetch'); }
+        if (!response.ok) { await response.body?.cancel(); throw new JobError('HTTP', `Schedule source returned HTTP ${response.status}.`, 'fetch'); }
         if (!response.headers.get('content-type')?.includes('text/html')) {
-          await response.body?.cancel(); throw new JobError('CONTENT_TYPE', 'CBV returned non-HTML content.', 'fetch');
+          await response.body?.cancel(); throw new JobError('CONTENT_TYPE', 'Schedule source returned non-HTML content.', 'fetch');
         }
         const chunks: Uint8Array[] = []; let size = 0;
         const reader = response.body?.getReader();
-        assert(reader, 'EMPTY_PAGE', 'CBV returned no page body.');
+        assert(reader, 'EMPTY_PAGE', 'Schedule source returned no page body.');
         try {
           while (true) {
             const part = await reader.read(); if (part.done) break;
             size += part.value.length;
-            if (size > 10_000_000) { await reader.cancel(); throw new JobError('PAGE_SIZE', 'CBV page exceeded the size limit.', 'fetch'); }
+            if (size > 10_000_000) { await reader.cancel(); throw new JobError('PAGE_SIZE', 'Schedule page exceeded the size limit.', 'fetch'); }
             chunks.push(part.value);
           }
         } finally { reader.releaseLock(); }
@@ -59,7 +59,7 @@ export async function fetchHtml(url: string, signal: AbortSignal, fetcher: typeo
     }
     if (attempt < 2) await delay(Math.max(500, retryMs), undefined, { signal });
   }
-  throw new JobError('FETCH_FAILED', 'CBV retrieval failed after three attempts.', 'fetch');
+  throw new JobError('FETCH_FAILED', 'Schedule retrieval failed after three attempts.', 'fetch');
 }
 export async function collect(config: Config, signal: AbortSignal): Promise<Snapshot> {
   const competitions = [];

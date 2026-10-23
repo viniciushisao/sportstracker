@@ -27,7 +27,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-If builds are not possible on A2, build on a compatible environment and upload `dist`, package manifests, and the wrapper, then install production dependencies with `npm ci --omit=dev`. Production uses compiled JavaScript; `tsx` and TypeScript are not needed at runtime.
+If builds are not possible on A2, build on a compatible environment and upload `dist`, `test/fixtures`, package manifests, and the wrapper, then install production dependencies with `npm ci --omit=dev`. Production uses compiled JavaScript; `tsx` and TypeScript are not needed at runtime.
 
 Edit `.env` privately:
 
@@ -143,3 +143,74 @@ SMTP acceptance is not an inbox guarantee. Provider outages, invalid credentials
 - No manual digest or historical resend was performed during this repair.
 
 Earlier launch instructions above are retained as setup/recovery guidance, not a statement that the app is undeployed.
+
+## University home volleyball reminders
+
+The university job is independent of Superliga. Deploy the updated source/build
+and install a **second** cron entry with `--university --scheduled`. Reuse the
+existing private SMTP environment and recipient. Both jobs use 16:00 Toronto;
+the university gate always uses America/Toronto regardless of TIMEZONE.
+
+Optional environment settings:
+
+- `UNIVERSITY_SEASON=2026-2027`: independent of CBV_SEASON; verify the official
+  schedules before changing seasons.
+- `UNIVERSITY_STATE_DB_PATH`: defaults to the existing STATE_DB_PATH with
+  `.university` appended. Keep separate from the Superliga database so simultaneous
+  jobs cannot block each other through their process locks.
+
+After deployment, validate on the hosting server without sending:
+
+```sh
+NODE_BIN=/opt/alt/alt-nodejs22/root/usr/bin/node ./scripts/run-daily.sh --university --dry-run
+```
+
+Use the existing hourly scheduler pattern (works across Toronto DST):
+
+```cron
+0 * * * * NODE_BIN=/opt/alt/alt-nodejs22/root/usr/bin/node /home/vsuzukic/sportstracker/scripts/run-daily.sh --university --scheduled >> /home/vsuzukic/private/sportstracker/university-cron.log 2>&1
+```
+
+This is a deployment instruction, not a record that the new cron was installed.
+As with Superliga, DRY_RUN must be false for cron delivery. Keep exactly one cron
+entry per job. The university job sends a health email on dates without eligible games
+today or tomorrow, after live validation and saved-example parser checks pass.
+Failures produce operational error emails instead of an all-clear. Preview
+files and source diagnostics are under `output/university` by default. Back up
+both state databases and rotate both logs.
+
+No historical reminder catch-up is automatic. Each accepted email has its own
+university/date/recipient delivery key; manual reruns cannot duplicate it. The
+previous-day reminder and same-day reminder have different dates. SMTP ambiguity
+blocks automatic retry just as for Superliga.
+
+The 4 PM timing intentionally retains games earlier that same day. A label says
+that their scheduled start has passed, or shows a final result if published;
+this is not a live score service. Schedule updates are fetched before sending,
+but changes after 4 PM do not trigger extra emails. TBD times are shown explicitly.
+Unknown venue addresses are not invented; missing/TBD locations on an otherwise
+eligible home fixture cause an operational error for review. Confirmed locations
+outside Toronto are filtered out. Conditional championship/playoff placeholders
+are excluded until an actual opponent is published.
+
+University pages are validated by table structure, season, sport, dates, times,
+and duplicate rows. Unlike CBV, these team schedules have no full round-robin
+coverage invariant; a structurally valid but incomplete official schedule cannot
+be proven complete. Review sources when season publication or markup changes.
+
+## Daily health checks on no-game days
+
+Deploy both `test/fixtures/cbv` and `test/fixtures/university` directories with the
+compiled build (same app root as `dist`). Missing/corrupt fixtures cause a
+`PARSER_HEALTH` error, not an all-clear. Fixture expectations are pinned to their
+saved season, independently of the current live season configuration. Update
+expectations deliberately when replacing saved examples.
+
+Superliga runs saved-example checks when today and yesterday both have no games;
+it still emails standings. University runs them when today and tomorrow both
+have no qualifying home games. Both first fetch and validate current sources.
+A successful check is recorded as `parser_health_passed`; delivery uses the same
+daily duplicate-send protection as game emails. The existing 4 PM schedules
+remain unchanged. No additional monitoring service or test-runner installation
+is needed. Checks describe parser/source health, not a guarantee of source
+completeness, inbox delivery, or real-time venue changes.

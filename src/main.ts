@@ -2,6 +2,7 @@ import { config as dotenv } from 'dotenv';
 import { DateTime, IANAZone } from 'luxon';
 import { loadConfig } from './config.js';
 import { runJob } from './job.js';
+import { runUniversityJob } from './university/job.js';
 import { safeError } from './errors.js';
 import { reportConfigError } from './email/config-error.js';
 
@@ -17,14 +18,14 @@ hardLimit.unref();
 try {
   const args = process.argv.slice(2);
   const now = DateTime.now();
-  const zone = IANAZone.isValidZone(process.env.TIMEZONE || '') ? process.env.TIMEZONE! : 'America/Toronto';
+  const zone = args.includes('--university') ? 'America/Toronto' : IANAZone.isValidZone(process.env.TIMEZONE || '') ? process.env.TIMEZONE! : 'America/Toronto';
   const local = now.setZone(zone);
   // Gate before validating mail settings to avoid per-minute error notifications
   // when the hosting scheduler invokes a misconfigured job throughout the day.
   if (args.includes('--scheduled') && (local.hour !== 16 || local.minute !== 0)) process.exitCode = 0;
   else {
     const configuration = loadConfig(process.env, args, now);
-    process.exitCode = await runJob(configuration);
+    process.exitCode = await (configuration.university ? runUniversityJob(configuration) : runJob(configuration));
   }
 } catch (error) {
   console.error(JSON.stringify({ event: 'configuration_failed', ...safeError(error) }));
