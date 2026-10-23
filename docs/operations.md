@@ -27,7 +27,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-If builds are not possible on A2, build on a compatible environment and upload `dist`, `test/fixtures`, package manifests, and the wrapper, then install production dependencies with `npm ci --omit=dev`. Production uses compiled JavaScript; `tsx` and TypeScript are not needed at runtime.
+If builds are not possible on A2, build on a compatible environment and upload `dist`, package manifests, and the wrapper, then install production dependencies with `npm ci --omit=dev`. Production uses compiled JavaScript; `tsx` and TypeScript are not needed at runtime.
 
 Edit `.env` privately:
 
@@ -174,7 +174,7 @@ Use the existing hourly scheduler pattern (works across Toronto DST):
 This is a deployment instruction, not a record that the new cron was installed.
 As with Superliga, DRY_RUN must be false for cron delivery. Keep exactly one cron
 entry per job. The university job sends a health email on dates without eligible games
-today or tomorrow, after live validation and saved-example parser checks pass.
+today or tomorrow, after live fetching and parsing succeed.
 Failures produce operational error emails instead of an all-clear. Preview
 files and source diagnostics are under `output/university` by default. Back up
 both state databases and rotate both logs.
@@ -200,20 +200,17 @@ be proven complete. Review sources when season publication or markup changes.
 
 ## Daily health checks on no-game days
 
-Deploy both `test/fixtures/cbv` and `test/fixtures/university` directories with the
-compiled build (same app root as `dist`). Missing/corrupt fixtures cause a
-`PARSER_HEALTH` error, not an all-clear. Fixture expectations are pinned to their
-saved season, independently of the current live season configuration. Update
-expectations deliberately when replacing saved examples.
+Daily runs fetch and parse current official pages, without running tests or loading
+saved examples. Successful live processing with no relevant games produces a
+“Health check OK” email; fetch/parser/validation failures produce a failure email.
+Superliga retains its standings. The success log event is `source_health_ok`.
+Duplicate-send protection and the 4 PM schedule remain unchanged.
 
-Superliga runs saved-example checks when today and yesterday both have no games;
-it still emails standings. University runs them when today and tomorrow both
-have no qualifying home games. Both first fetch and validate current sources.
-A successful check is recorded as `parser_health_passed`; delivery uses the same
-daily duplicate-send protection as game emails. The existing 4 PM schedules
-remain unchanged. No additional monitoring service or test-runner installation
-is needed. Checks describe parser/source health, not a guarantee of source
-completeness, inbox delivery, or real-time venue changes.
+Run automated tests only when requested or during deployment. On A2, use
+`node --experimental-sqlite --import tsx --test --test-concurrency=1 test/*.test.ts`
+and `GOMAXPROCS=2 npm run build` to stay within hosting resources. Fixtures are
+needed for testing and explicit offline previews, not for daily live execution.
+GitHub checks are manual or callable by deployment workflows.
 
 ## October 23, 2026 deployment
 
@@ -236,3 +233,9 @@ completeness, inbox delivery, or real-time venue changes.
 - University state is independent at
   `/home/vsuzukic/private/sportstracker/state.sqlite.university`.
 - No manual email or historical resend was performed during deployment.
+
+## Follow-up: daily health reporting without automated tests
+
+The code now uses successful current-source fetching/parsing as the health signal.
+The October 23 deployment record above describes the earlier saved-example checks;
+this follow-up change must be deployed before the server adopts the new behavior.

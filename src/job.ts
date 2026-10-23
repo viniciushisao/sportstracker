@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { collect } from './cbv/fetch.js';
 import { isDue, type Config } from './config.js';
 import { DateTime } from 'luxon';
-import { checkSuperligaParser } from './parser-health.js';
 import { healthEmail } from './email/health.js';
 import { dayMatches, render } from './email/render.js';
 import { createMailer, MailError, type Mailer } from './email/transport.js';
@@ -13,7 +12,6 @@ import { JobError, safeError } from './errors.js';
 import type { Email, Snapshot } from './types.js';
 export interface Dependencies<T = Snapshot> {
   collect: (config: Config, signal: AbortSignal) => Promise<T>;
-  checkParser?: (signal: AbortSignal) => Promise<void>;
   mailer: (config: Config) => Mailer;
   log: (data: Record<string, unknown>) => void;
 }
@@ -22,15 +20,13 @@ export interface DeliveryJob<T> {
   key: string; label: string;
   collect: Dependencies<T>['collect'];
   render: (snapshot: T, config: Config) => Email | null;
-  needsHealthCheck: (snapshot: T, config: Config) => boolean;
-  checkParser: (signal: AbortSignal) => Promise<void>;
+  needsHealthReport: (snapshot: T, config: Config) => boolean;
   summary: (snapshot: T) => Record<string, unknown>;
 }
 export function runJob(config: Config, overrides: Partial<Dependencies> = {}): Promise<number> {
   return runDeliveryJob(config, {
     key: 'digest', label: 'Superliga', collect, render,
-    checkParser: checkSuperligaParser,
-    needsHealthCheck: (snapshot, config) => {
+    needsHealthReport: (snapshot, config) => {
       const yesterday = DateTime.fromISO(config.date, { zone: config.timezone }).minus({ days: 1 }).toISODate()!;
       return !dayMatches(snapshot, config.date, config.timezone).length && !dayMatches(snapshot, yesterday, config.timezone).length;
     },
@@ -63,12 +59,9 @@ export async function runDeliveryJob<T>(config: Config, job: DeliveryJob<T>, ove
     controller.signal.throwIfAborted();
     log('validated', job.summary(snapshot));
     stage = 'render'; let email = job.render(snapshot, config);
-    if (job.needsHealthCheck(snapshot, config)) {
-      stage = 'parser_health';
-      await (deps.checkParser || job.checkParser)(controller.signal);
-      controller.signal.throwIfAborted();
+    if (job.needsHealthReport(snapshot, config)) {
       email = healthEmail(email, job.label, config);
-      log('parser_health_passed', { sourceMode: config.fixtureDir ? 'fixture' : 'live' });
+      log('source_health_ok', { sourceMode: config.fixtureDir ? 'fixture' : 'live' });
     }
     if (!email) throw new JobError('EMPTY_EMAIL', 'Daily job produced no information or health report.', 'render');
     if (config.dryRun) {

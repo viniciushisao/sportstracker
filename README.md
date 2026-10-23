@@ -66,7 +66,7 @@ The A2 deployment and active cron schedule were inspected on October 19, 2026. A
 A separate `--university` job tracks U of T Varsity Blues and TMU Bold, men and
 women. It sends one combined email every day at **4 PM America/Toronto**, including
 eligible home games today or tomorrow. On no-game days, live schedule validation
-and saved-example parser checks must pass before an all-clear email is sent. Away and neutral games are excluded,
+and parsing must pass before an all-clear email is sent. Away and neutral games are excluded,
 even in Toronto; home games relocated outside Toronto are also excluded.
 Each email includes local start times, the published gym, a verified street
 address where known, and official schedule/ticket links. A game before 4 PM still
@@ -93,15 +93,14 @@ and the current CBV source coverage issue.
 
 Both jobs send every day at 4 PM Toronto time. University emails contain today's
 and tomorrow's eligible home games. Superliga retains today's games, yesterday's
-results and standings. When neither of a job's game windows contains games, it
-also runs production parser checks against bundled saved official examples.
-Only successful live collection/validation and successful saved-example checks
-produce “Everything looks fine.” Failures use the existing failure email path.
-Superliga standings remain included on its no-game days.
+results and standings. If there are no relevant games, a successful fetch and
+parse of current official sources produces “Health check OK.” Failures use the
+existing failure email path. Superliga standings remain included on no-game days.
 
-Deploy `test/fixtures/cbv` and `test/fixtures/university` alongside `dist`. These
-checks run with production dependencies; they do not require TypeScript or the
-development test runner. They check expected counts and invalid-input rejection;
-university checks also verify home venues and exclusion of a known away game.
-The full development suite remains `npm run check`. Offline previews explicitly
-state that live sources were not contacted.
+Daily jobs do not run automated tests or read test fixtures in live mode.
+Run `npm run check` when requested or before deployment. GitHub checks are
+manual (`workflow_dispatch`) or callable by a deployment workflow (`workflow_call`),
+not triggered by ordinary pushes or pull requests. Saved examples remain available
+for those tests and explicit offline previews. Production needs no test fixtures
+unless running an offline preview. Offline previews identify that live sources
+were not contacted.
