@@ -238,4 +238,9 @@ GitHub checks are manual or callable by deployment workflows.
 
 The code now uses successful current-source fetching/parsing as the health signal.
 The October 23 deployment record above describes the earlier saved-example checks;
-this follow-up change must be deployed before the server adopts the new behavior.
+follow-up commit `dce4cf1` was deployed to A2 on October 23, 2026.
+All 68 tests passed locally and sequentially on A2, and the build succeeded.
+A live-source university preview for the no-game date October 28 produced
+“Health check OK” without saved-example checks. Both existing cron entries remain
+unchanged. No manual email was sent. Previous build and cron backup:
+`/home/vsuzukic/private/sportstracker/health-backup-20261023181030`.
