@@ -244,3 +244,22 @@ A live-source university preview for the no-game date October 28 produced
 “Health check OK” without saved-example checks. Both existing cron entries remain
 unchanged. No manual email was sent. Previous build and cron backup:
 `/home/vsuzukic/private/sportstracker/health-backup-20261023181030`.
+
+
+## Required publication verification
+After updating the production checkout (and dependencies when changed), run:
+
+```sh
+NODE_BIN=/opt/alt/alt-nodejs22/root/usr/bin/node ./scripts/publish.sh
+```
+
+This runs type checking, all tests sequentially, the build, a live dry-run,
+and an actual Superliga email. Each step must succeed before the next begins.
+Use `--university` for a university publication. Back up the previous build
+before updating as usual. This command does not pull Git changes or modify cron.
+
+Publication deliberately sends another daily digest even if today's email was
+already accepted, recording a publication reason. Uncertain prior delivery still
+blocks sending; do not automatically override it. An active job lock returns
+failure for publication. SMTP acceptance confirms provider acceptance, not inbox
+delivery. Ordinary cron duplicate protection is unchanged.

@@ -49,11 +49,11 @@ export async function runDeliveryJob<T>(config: Config, job: DeliveryJob<T>, ove
   try {
     if (!config.dryRun) {
       release = await acquireLock(config.statePath);
-      if (!release) { log('locked_skip'); return 0; }
+      if (!release) { log('locked_skip'); return config.publish ? 1 : 0; }
       stage = 'state'; state = new State(config.statePath); state.start(runId, config.date);
       const disposition = state.disposition(key);
-      if (disposition === 'accepted' && !config.resendReason) { state.finish(runId, 'already_sent'); log('already_sent'); return 0; }
-      if (disposition === 'ambiguous' && !config.resendReason) throw new JobError('DELIVERY_BLOCKED', 'Prior delivery outcome is uncertain; check provider records before retrying.', stage);
+      if (disposition === 'accepted' && !config.resendReason && !config.publish) { state.finish(runId, 'already_sent'); log('already_sent'); return 0; }
+      if (disposition === 'ambiguous' && (!config.resendReason || config.publish)) throw new JobError('DELIVERY_BLOCKED', 'Prior delivery outcome is uncertain; check provider records before retrying.', stage);
     }
     stage = 'fetch'; log('started');
     const snapshot = await deps.collect(config, controller.signal);
@@ -73,7 +73,7 @@ export async function runDeliveryJob<T>(config: Config, job: DeliveryJob<T>, ove
       log('preview_written', { outputDir: config.outputDir }); return 0;
     }
     stage = 'state'; state!.snapshot(runId, snapshot);
-    const delivery = state!.prepare(key, runId, email, config.sender, config.resendReason);
+    const delivery = state!.prepare(key, runId, email, config.sender, config.publish ? 'Post-publication verification email' : config.resendReason);
     stage = 'email'; mailer = deps.mailer(config); state!.mark(delivery.id, 'sending');
     try { await mailer.send(email, config.recipient, delivery.messageId, controller.signal); }
     catch (error) { state!.mark(delivery.id, error instanceof MailError ? error.outcome : 'unknown'); throw error; }

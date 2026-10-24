@@ -7,10 +7,10 @@ export interface Config {
   recipient: string; errorRecipient: string; sender: string; smtpHost: string; smtpPort: number;
   smtpSecure: boolean; smtpUser: string; smtpPass: string; statePath: string; outputDir: string;
   fixtureDir?: string; urls: { men: string; women: string }; now: DateTime;
-  resendReason?: string;
+  resendReason?: string; publish?: boolean;
 }
 export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTime.now()): Config {
-  const flags = new Set(['--dry-run', '--send', '--scheduled', '--university']);
+  const flags = new Set(['--dry-run', '--send', '--scheduled', '--university', '--publish']);
   const values = new Set(['--date', '--fixtures', '--output', '--resend-reason']);
   const options: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
@@ -33,6 +33,8 @@ export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTim
   const dryRun = !!options['--dry-run'] || (!options['--send'] && boolean('DRY_RUN', true));
   if (options['--fixtures'] && !dryRun) throw new JobError('CONFIG', 'Fixtures can only be used in dry-run mode.', 'configuration');
   if (options['--scheduled'] && (options['--date'] || options['--resend-reason'])) throw new JobError('CONFIG', 'Scheduled runs cannot override dates or resend.', 'configuration');
+  if (options['--publish'] && (!options['--send'] || options['--scheduled'] || options['--resend-reason'] || options['--date']))
+    throw new JobError('CONFIG', 'Publishing requires --send and cannot override date, schedule, or resend reason.', 'configuration');
   const season = env.CBV_SEASON || '2026-2027';
   if (!options['--university'] && (!/^20\d{2}-20\d{2}$/.test(season) || Number(season.slice(5)) !== Number(season.slice(0, 4)) + 1))
     throw new JobError('CONFIG', 'Invalid CBV_SEASON.', 'configuration');
@@ -40,7 +42,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTim
   if (options['--university'] && (!/^20\d{2}-20\d{2}$/.test(universitySeason) || Number(universitySeason.slice(5)) !== Number(universitySeason.slice(0, 4)) + 1))
     throw new JobError('CONFIG', 'Invalid UNIVERSITY_SEASON.', 'configuration');
   const config: Config = {
-    university: !!options['--university'], universitySeason,
+    university: !!options['--university'], universitySeason, publish: !!options['--publish'],
     dryRun, scheduled: !!options['--scheduled'], date, timezone, season, now,
     recipient: env.EMAIL_TO || 'vinicius@hisao.com.br', errorRecipient: env.ERROR_EMAIL_TO || env.EMAIL_TO || 'vinicius@hisao.com.br',
     sender: env.EMAIL_FROM || '', smtpHost: env.SMTP_HOST || '', smtpPort: Number(env.SMTP_PORT || 587),

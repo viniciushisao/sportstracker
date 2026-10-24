@@ -83,3 +83,36 @@ test('invalid job config can notify with separately validated SMTP settings', as
   assert.equal(await reportConfigError({...env, SMTP_PASS:''}, [], new Error('x'), factory), 'failed');
   assert.equal(sent, 1);
 });
+
+test('each publication sends a fresh digest while normal daily runs still skip', async t => {
+  const c = await setup(t); let sent = 0;
+  const deps = { collect: async () => data, log() {}, mailer: () => ({ send: async () => { sent++; }, close() {} }) };
+  assert.equal(await runJob(c, deps), 0);
+  c.publish = true;
+  assert.equal(await runJob(c, deps), 0);
+  assert.equal(await runJob(c, deps), 0);
+  c.publish = false;
+  assert.equal(await runJob(c, deps), 0);
+  assert.equal(sent, 3);
+});
+
+test('publication cannot override uncertain delivery and reports active locks', async t => {
+  const c = await setup(t); c.publish = true;
+  let digests = 0;
+  const deps = { collect: async () => data, log() {}, mailer: () => ({
+    send: async (email: any) => { if (email.subject.startsWith('Superliga')) { digests++; throw new MailError('unknown'); } }, close() {},
+  }) };
+  assert.equal(await runJob(c, deps), 1);
+  assert.equal(await runJob(c, deps), 1);
+  assert.equal(digests, 1);
+  const release = await acquireLock(c.statePath);
+  try { assert.equal(await runJob(c, deps), 1); } finally { await release!(); }
+});
+
+test('publication flags reject dry-run, schedule, historical date and manual overrides', () => {
+  for (const args of [
+    ['--publish'], ['--publish', '--dry-run'], ['--publish', '--send', '--scheduled'],
+    ['--publish', '--send', '--date', '2026-10-24'],
+    ['--publish', '--send', '--resend-reason', 'override'],
+  ]) assert.throws(() => loadConfig({}, args));
+});
