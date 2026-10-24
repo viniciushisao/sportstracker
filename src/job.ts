@@ -27,6 +27,7 @@ export function runJob(config: Config, overrides: Partial<Dependencies> = {}): P
   return runDeliveryJob(config, {
     key: 'digest', label: 'Superliga', collect, render,
     needsHealthReport: (snapshot, config) => {
+      if (snapshot.competitions.some(c => c.coverageWarnings?.length || c.firstLegOnly)) return false;
       const yesterday = DateTime.fromISO(config.date, { zone: config.timezone }).minus({ days: 1 }).toISODate()!;
       return !dayMatches(snapshot, config.date, config.timezone).length && !dayMatches(snapshot, yesterday, config.timezone).length;
     },

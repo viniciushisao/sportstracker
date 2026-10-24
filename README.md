@@ -41,7 +41,7 @@ npm run daily -- --send
 ## Behavior
 
 - Retrieves CBV's public HTML; parses embedded page data as JSON, without executing website scripts or using a sports API.
-- Checks season, competition, complete standings, all pairings in each published regular-season leg, match IDs, timestamps, and scores before sending.
+- Checks season, competition, standings, match IDs, timestamps, and scores before sending. Missing regular-season fixtures produce a prominent coverage note in the email, including counts and missing pairings when the list is short. Conflicting data still fails validation.
 - Generates HTML and plain-text email, including empty-day messages and pending results.
 - Uses SQLite and a process lock to prevent concurrent or repeated daily sends.
 - Sends sanitized failure notifications when email configuration is usable. Uncertain SMTP delivery requires operator review before retrying.
@@ -104,3 +104,8 @@ not triggered by ordinary pushes or pull requests. Saved examples remain availab
 for those tests and explicit offline previews. Production needs no test fixtures
 unless running an offline preview. Offline previews identify that live sources
 were not contacted.
+
+Superliga digests with incomplete schedule coverage still send available games, results,
+and standings. Empty-day messages describe only the available schedule, and these
+digests do not claim “Health check OK.” Missing return-leg publication also produces
+a coverage note, including for dates beyond the published first leg.

@@ -7,6 +7,7 @@ for (const gender of ['men', 'women'] as const) test(`real ${gender} pages provi
   const data = competition(gender);
   assert.equal(data.matches.length, 132); assert.equal(data.standings.length, 12);
   assert.equal(new Set(data.matches.map(m => m.id)).size, 132);
+  assert.deepEqual(data.coverageWarnings, []);
   assert.ok(data.standings.every(s => s.points === 0));
   assert.equal(data.matches[0]!.startsAt, gender === 'men' ? '2026-10-24T21:30:00.000Z' : '2026-10-17T21:30:00.000Z');
 });
@@ -25,9 +26,9 @@ test('truncated standings fail roster validation', () => {
   const html = modifiedPage('standings', d => d.teams.pop());
   assert.throws(() => parse(fixture('men'), html), /rosters differ/);
 });
-test('missing schedule match fails coverage', () => {
+test('missing schedule match returns a coverage warning', () => {
   const html = modifiedPage('games', d => d.matchesByRound['TURNO - RODADA 1'].pop());
-  assert.throws(() => parse(html), /schedule is missing/);
+  assert.equal(parse(html).coverageWarnings?.length, 1);
 });
 test('identical duplicate records are deduplicated', () => {
   const html = modifiedPage('games', d => d.matchesByRound['TURNO - RODADA 1'].push(d.matchesByRound['TURNO - RODADA 1'][0]));
@@ -57,10 +58,10 @@ test('accepts a complete first leg before CBV publishes the return leg', () => {
   });
   assert.equal(parse(html).matches.length, 66);
 });
-test('rejects partial first and return legs', () => {
+test('reports partial first and return legs without failing', () => {
   for (const prefix of ['TURNO', 'RETURNO']) {
     const html = modifiedPage('games', d => d.matchesByRound[`${prefix} - RODADA 1`].pop());
-    assert.throws(() => parse(html), /schedule is missing/);
+    assert.match(parse(html).coverageWarnings![0]!, /65\/66 matches published; 1 missing/);
   }
 });
 test('rejects duplicated pairings with different match IDs', () => {
@@ -68,7 +69,7 @@ test('rejects duplicated pairings with different match IDs', () => {
     const round = d.matchesByRound['TURNO - RODADA 1'];
     round[1] = { ...round[0], ChampionshipMatch_ID: round[1].ChampionshipMatch_ID };
   });
-  assert.throws(() => parse(html), /schedule is missing/);
+  assert.throws(() => parse(html), /duplicated pairings/);
 });
 
 test('preserves published standings statistics and rejects missing values', () => {
@@ -94,4 +95,18 @@ test('reads broadcast names and tolerates absent channel metadata', () => {
     match.channel = '$undefined';
   });
   assert.deepEqual(parse(missing).matches[0]!.broadcasters, []);
+});
+
+test('empty rounds and an unpublished team schedule produce coverage notes', () => {
+  const emptyRound = parse(modifiedPage('games', d => d.matchesByRound['TURNO - RODADA 1'] = []));
+  assert.match(emptyRound.coverageWarnings![0]!, /60\/66 matches published; 6 missing/);
+  const missingTeam = parse(modifiedPage('games', d => {
+    const team = d.matchesByRound['TURNO - RODADA 1'][0].HomeTeam_ID;
+    for (const key of Object.keys(d.matchesByRound)) {
+      d.matchesByRound[key] = d.matchesByRound[key].filter((m: any) => m.HomeTeam_ID !== team && m.GuestTeam_ID !== team);
+    }
+  }));
+  assert.equal(missingTeam.standings.length, 12);
+  assert.equal(missingTeam.coverageWarnings?.length, 2);
+  assert.ok(missingTeam.coverageWarnings!.every(w => w.includes('55/66')));
 });

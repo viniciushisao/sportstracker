@@ -12,6 +12,7 @@ export interface CompetitionData {
   matches: Match[]; standings: Standing[]; sourceUrl: string; standingsUrl: string;
   sourceUpdatedAt: string | null; rounds: string[];
   firstLegOnly?: boolean;
+  coverageWarnings?: string[];
 }
 export interface Snapshot { fetchedAt: string; competitions: CompetitionData[] }
 export interface Email { subject: string; text: string; html?: string }

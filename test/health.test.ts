@@ -8,7 +8,8 @@ import { runJob } from '../src/job.js';
 import { runUniversityJob } from '../src/university/job.js';
 import { healthEmail } from '../src/email/health.js';
 import { JobError } from '../src/errors.js';
-import { snapshot } from './helpers.js';
+import { snapshot, modifiedPage, fixture, menUrl } from './helpers.js';
+import { parseCompetition } from '../src/cbv/parse.js';
 
 for (const [label, run, data] of [
   ['Superliga', runJob, snapshot()],
@@ -41,4 +42,29 @@ test('offline health preview never claims a live source check', () => {
   const email = healthEmail(null, 'University volleyball', c);
   assert.match(email.text, /live sources were not contacted/);
   assert.ok(!email.text.includes('Current official schedules fetched'));
+});
+
+test('incomplete Superliga coverage sends the digest with a note, including on no-game days', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'coverage-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const data = snapshot();
+  const html = modifiedPage('games', d => d.matchesByRound['RETURNO - RODADA 2'].pop());
+  data.competitions[0] = parseCompetition(html, fixture('men-standings'), 'men', '2026-2027', menUrl, menUrl + '/classificacao');
+  for (const date of ['2026-10-24', '2026-10-15']) {
+    const config = loadConfig({ EMAIL_FROM: 'tracker@example.org', SMTP_HOST: 'smtp.example.org', SMTP_USER: 'user', SMTP_PASS: 'secret', STATE_DB_PATH: join(dir, 'state.sqlite') }, ['--send', '--date', date]);
+    const emails: any[] = [];
+    assert.equal(await runJob(config, {
+      collect: async () => data, log() {},
+      mailer: () => ({ send: async email => { emails.push(email); }, close() {} }),
+    }), 0);
+    assert.equal(emails.length, 1);
+    for (const body of [emails[0].text, emails[0].html]) {
+      assert.match(body, /Schedule coverage note/);
+      assert.match(body, /65\/66 matches published; 1 missing/);
+      assert.match(body, /Missing:/);
+      assert.doesNotMatch(body, /Health check OK/);
+      assert.match(body, /standings/);
+    }
+    assert.doesNotMatch(emails[0].subject, /Failed/);
+  }
 });

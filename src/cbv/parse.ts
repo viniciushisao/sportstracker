@@ -75,7 +75,7 @@ export function parseCompetition(gamesHtml: string, standingsHtml: string, compe
   const matches = new Map<string, Match>(); const rounds: string[] = []; const championshipIds = new Set<number>();
   for (const map of maps as Record<string, unknown>[]) {
     for (const [round, entries] of Object.entries(map)) {
-      assert(Array.isArray(entries) && entries.length > 0, 'ROUND', 'CBV round data is missing or unresolved.');
+      assert(Array.isArray(entries), 'ROUND', 'CBV round data is missing or unresolved.');
       rounds.push(round);
       for (const entry of entries) {
         const result = rawMatch.safeParse(entry);
@@ -116,15 +116,28 @@ export function parseCompetition(gamesHtml: string, standingsHtml: string, compe
   assert(roster.size === standings.length && standings.every((s, i) => s.rank === i + 1), 'STANDINGS', 'Duplicate teams or incomplete ranking positions.');
   const games = [...matches.values()];
   const gameTeams = new Set(games.flatMap(m => [m.home.id, m.away.id]));
-  assert(gameTeams.size === roster.size && [...gameTeams].every(t => roster.has(t)), 'ROSTER', 'Schedule and standings rosters differ.');
-  // CBV may publish the complete first leg before publishing the return leg.
-  // Every published leg must contain every unordered pairing exactly once.
+  assert([...gameTeams].every(t => roster.has(t)), 'ROSTER', 'Schedule and standings rosters differ.');
+  // Missing published fixtures are advisory; contradictory pairings still fail.
   const regular = games.filter(m => /^(?:TURNO|RETURNO) - RODADA \d+$/.test(m.phase));
   const first = regular.filter(m => m.phase.startsWith('TURNO'));
   const second = regular.filter(m => m.phase.startsWith('RETURNO'));
-  const completeLeg = (leg: Match[]) => leg.length === roster.size * (roster.size - 1) / 2
-    && new Set(leg.map(m => [m.home.id, m.away.id].sort().join('|'))).size === leg.length;
-  assert(completeLeg(first) && (second.length === 0 || completeLeg(second)), 'COVERAGE', 'Published schedule is missing or duplicated.');
+  const coverageWarnings: string[] = [];
+  const expected = roster.size * (roster.size - 1) / 2;
+  const label = competition === 'men' ? 'Men' : 'Women';
+  for (const [legName, leg] of [['First leg', first], ['Return leg', second]] as const) {
+    const pairs = new Set(leg.map(m => [m.home.id, m.away.id].sort().join('|')));
+    assert(pairs.size === leg.length, 'COVERAGE', 'Published schedule contains duplicated pairings.');
+    if (leg.length < expected) {
+      const missing: string[] = [];
+      for (let i = 0; i < standings.length; i++) {
+        for (let j = i + 1; j < standings.length; j++) {
+          const a = standings[i]!.team; const b = standings[j]!.team;
+          if (!pairs.has([a.id, b.id].sort().join('|'))) missing.push(`${a.name} vs ${b.name}`);
+        }
+      }
+      coverageWarnings.push(`${label}: ${legName} schedule is incomplete (${leg.length}/${expected} matches published; ${expected - leg.length} missing).${missing.length <= 6 ? ` Missing: ${missing.join('; ')}.` : ''}`);
+    }
+  }
   const sourceUpdatedAt = typeof tables[0]!.lastUpdated === 'string' ? tables[0]!.lastUpdated : null;
-  return { competition, season, championshipId, matches: games, standings, sourceUrl, standingsUrl, sourceUpdatedAt, rounds, firstLegOnly: second.length === 0 };
+  return { competition, season, championshipId, matches: games, standings, sourceUrl, standingsUrl, sourceUpdatedAt, rounds, firstLegOnly: second.length === 0, coverageWarnings };
 }

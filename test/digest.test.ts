@@ -48,14 +48,14 @@ test('configuration defaults to safe dry-run and rejects unsafe combinations', (
   assert.throws(() => loadConfig({ DRY_RUN: 'False' }, []));
 });
 
-test('first-leg-only digest explains coverage and rejects dates beyond publication', () => {
+test('first-leg-only digest explains coverage even beyond publication', () => {
   const s = structuredClone(base);
   const men = s.competitions[0]!;
   men.matches = men.matches.filter(m => m.phase.startsWith('TURNO'));
   men.firstLegOnly = true;
   const config = { date: '2026-10-26', timezone: 'America/Toronto', season: '2026-2027' };
   assert.match(render(s, config).text, /first-leg schedule only/);
-  assert.throws(() => render(s, { ...config, date: '2027-06-01' }), /beyond the published/);
+  assert.match(render(s, { ...config, date: '2027-06-01' }).text, /coverage is incomplete/);
 });
 
 test('round labels count both legs and preserve playoff phases', () => {
