@@ -28,8 +28,8 @@ export function runJob(config: Config, overrides: Partial<Dependencies> = {}): P
     key: 'digest', label: 'Superliga', collect, render,
     needsHealthReport: (snapshot, config) => {
       if (snapshot.competitions.some(c => c.coverageWarnings?.length || c.firstLegOnly)) return false;
-      const yesterday = DateTime.fromISO(config.date, { zone: config.timezone }).minus({ days: 1 }).toISODate()!;
-      return !dayMatches(snapshot, config.date, config.timezone).length && !dayMatches(snapshot, yesterday, config.timezone).length;
+      const day = DateTime.fromISO(config.date, { zone: config.timezone });
+      return [-1, 0, 1].every(offset => !dayMatches(snapshot, day.plus({ days: offset }).toISODate()!, config.timezone).length);
     },
     summary: snapshot => ({ competitions: snapshot.competitions.map(c => ({ competition: c.competition, matches: c.matches.length, teams: c.standings.length })) }),
   }, overrides);

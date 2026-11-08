@@ -1,6 +1,6 @@
 # Sports Tracker — Superliga daily email
 
-A Node.js/TypeScript job that scrapes the official CBV website and emails today's games, yesterday's results, and complete men's and women's Superliga A standings to `vinicius@hisao.com.br`.
+A Node.js/TypeScript job that scrapes the official CBV website and emails tomorrow's games, today's games, yesterday's results, and complete men's and women's Superliga A standings to `vinicius@hisao.com.br`.
 
 Production target: the owner's **A2 Hosting Basic plan**, using cron at **4:00 PM America/Toronto**. Emails are in English, with Toronto match times and official Portuguese team names. Deployment was verified on A2 on October 19, 2026; see the operations log below.
 
@@ -92,7 +92,7 @@ and the current CBV source coverage issue.
 ## Daily no-game health emails
 
 Both jobs send every day at 4 PM Toronto time. University emails contain today's
-and tomorrow's eligible home games. Superliga retains today's games, yesterday's
+and tomorrow's eligible home games. Superliga includes tomorrow's games, today's games, yesterday's
 results and standings. If there are no relevant games, a successful fetch and
 parse of current official sources produces “Health check OK.” Failures use the
 existing failure email path. Superliga standings remain included on no-game days.

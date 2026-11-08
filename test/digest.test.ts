@@ -89,3 +89,34 @@ test('today shows escaped broadcasters, missing details and converted BRT times'
   match.startsAt = '2026-10-27T03:00:00Z';
   assert.match(render(s, config).text, /Oct 27 · 12:00 AM BRT/);
 });
+
+test('tomorrow includes both competitions across year and DST boundaries, excluding the next day', () => {
+  for (const [date, next, later] of [
+    ['2026-12-31', '2027-01-01T18:00:00Z', '2027-01-02T18:00:00Z'],
+    ['2026-10-31', '2026-11-02T04:30:00Z', '2026-11-02T05:00:00Z'],
+  ]) {
+    const s = structuredClone(base);
+    for (const c of s.competitions) c.matches = [
+      { ...c.matches[0]!, startsAt: next!, home: { id: 'next', name: `Tomorrow ${c.competition}` } },
+      { ...c.matches[0]!, id: 'later', startsAt: later!, home: { id: 'later', name: 'Excluded later game' } },
+    ];
+    const email = render(s, { date: date!, timezone: 'America/Toronto', season: '2026-2027' });
+    for (const body of [email.text, email.html!]) {
+      assert.ok(body.indexOf("Tomorrow") < body.indexOf("Today"));
+      assert.match(body, /Tomorrow men/);
+      assert.match(body, /Tomorrow women/);
+      assert.ok(!body.includes('Excluded later game'));
+    }
+  }
+});
+
+test('tomorrow has explicit empty states in text and HTML, including incomplete coverage', () => {
+  const config = { date: '2027-06-01', timezone: 'America/Toronto', season: '2026-2027' };
+  for (const body of Object.values(render(base, config))) {
+    if (body.includes('Tomorrow')) assert.match(body, /No games scheduled tomorrow/);
+  }
+  const s = structuredClone(base);
+  s.competitions[0]!.firstLegOnly = true;
+  const email = render(s, config);
+  for (const body of [email.text, email.html!]) assert.match(body, /No games listed tomorrow in the available schedule; coverage is incomplete/);
+});

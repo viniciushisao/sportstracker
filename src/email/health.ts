@@ -4,7 +4,7 @@ import { escapeHtml } from './render.js';
 export function healthEmail(email: Email | null, label: string, config: Config): Email {
   const message = [
     'Health check OK.',
-    label === 'Superliga' ? 'No games today or yesterday; standings are included below.' : 'No qualifying Toronto home games today or tomorrow.',
+    label === 'Superliga' ? 'No games tomorrow, today or yesterday; standings are included below.' : 'No qualifying Toronto home games today or tomorrow.',
     config.fixtureDir ? 'Offline preview: saved schedules validated (live sources were not contacted).' : 'Current official schedules fetched and validated successfully.',
     `Checked for ${config.date} (${config.timezone}).`,
   ].join('\n');

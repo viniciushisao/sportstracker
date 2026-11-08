@@ -68,3 +68,22 @@ test('incomplete Superliga coverage sends the digest with a note, including on n
     assert.doesNotMatch(emails[0].subject, /Failed/);
   }
 });
+
+test('tomorrow-only Superliga games produce a digest without an empty-day health report', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tomorrow-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const data = snapshot();
+  for (const c of data.competitions) {
+    c.coverageWarnings = []; c.firstLegOnly = false;
+    c.matches = [{ ...c.matches[0]!, startsAt: '2026-10-16T22:00:00Z' }];
+  }
+  const config = loadConfig({ EMAIL_FROM: 'tracker@example.org', SMTP_HOST: 'smtp.example.org', SMTP_USER: 'user', SMTP_PASS: 'secret', STATE_DB_PATH: join(dir, 'state.sqlite') }, ['--send', '--date', '2026-10-15']);
+  const emails: any[] = [];
+  assert.equal(await runJob(config, {
+    collect: async () => data, log() {},
+    mailer: () => ({ send: async email => { emails.push(email); }, close() {} }),
+  }), 0);
+  assert.equal(emails.length, 1);
+  assert.match(emails[0].text, /Tomorrow's games/);
+  assert.doesNotMatch(emails[0].text, /Health check OK/);
+});
