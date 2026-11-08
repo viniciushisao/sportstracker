@@ -43,7 +43,7 @@ Some published return fixtures retain the same home/away order as their first fi
 
 CBV's embedded `MatchDateTime` values contain explicit offsets. Parse the complete instant and convert it to UTC, then select/display it in `America/Toronto`. For example, `2026-10-24T23:30:00+02:00` is `21:30Z` and `5:30 PM` Toronto time. Do not assume the source timestamp's wall clock is Brazilian local time.
 
-Capture the run time once to determine the digest date. Yesterday is the preceding Toronto calendar date, not a fixed 24-hour subtraction. Include all of today's matches, even completed matches earlier than 16:00. Yesterday's unfinished matches remain visible as `Result pending`. Explicit live and postponed flags are preserved. Finished scores require three sets for the winner and zero to two for the other side.
+Capture the run time once to determine the digest date. Yesterday is the preceding Toronto calendar date, not a fixed 24-hour subtraction. Include all of today's matches, even completed matches earlier than 12:00. Yesterday's unfinished matches remain visible as `Result pending`. Explicit live and postponed flags are preserved. Finished scores require three sets for the winner and zero to two for the other side.
 
 Current adapter limitations deliberately fail closed:
 
@@ -89,7 +89,7 @@ Error handling uses an independent plain-text renderer and one notification atte
 - `npm run preview`: offline official-fixture preview for October 26, 2026.
 - `npm run daily -- --dry-run`: live retrieval and preview; never sends email or mutates delivery state.
 - `npm run daily -- --send`: explicit production delivery.
-- `scripts/run-daily.sh --scheduled`: compiled production job, due only at 16:00 Toronto; sending still depends on `DRY_RUN=false`.
+- `scripts/run-daily.sh --scheduled`: compiled production job, due only at 12:00 Toronto; sending still depends on `DRY_RUN=false`.
 - `--date YYYY-MM-DD`: explicit manual digest date using the configured published season.
 - `--resend-reason "Provider confirmed no delivery"`: explicit audited resend after reconciliation; cannot be used with `--scheduled`.
 

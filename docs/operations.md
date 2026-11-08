@@ -61,13 +61,13 @@ NODE_BIN=/absolute/path/to/node ./scripts/run-daily.sh --send
 
 This sends to the configured recipient even while `DRY_RUN=true`. Verify delivery and rendering in the actual inbox before setting `DRY_RUN=false`. A successful send records that day's digest; later normal invocations skip it.
 
-## Cron at 4 PM Toronto
+## Cron at noon Toronto
 
 On a host with verified `CRON_TZ` support:
 
 ```cron
 CRON_TZ=America/Toronto
-0 16 * * * NODE_BIN=/absolute/path/to/node /home/ACCOUNT/apps/sportstracker/scripts/run-daily.sh >> /home/ACCOUNT/private/sportstracker/cron.log 2>&1
+0 12 * * * NODE_BIN=/absolute/path/to/node /home/ACCOUNT/apps/sportstracker/scripts/run-daily.sh >> /home/ACCOUNT/private/sportstracker/cron.log 2>&1
 ```
 
 On cPanel/cron without verified timezone support, use the application gate:
@@ -76,11 +76,11 @@ On cPanel/cron without verified timezone support, use the application gate:
 * * * * * NODE_BIN=/absolute/path/to/node /home/ACCOUNT/apps/sportstracker/scripts/run-daily.sh --scheduled >> /home/ACCOUNT/private/sportstracker/cron.log 2>&1
 ```
 
-The second entry starts a small process each minute; the application performs the daily work only at 16:00 `America/Toronto`, following DST automatically. Confirm the account permits every-minute cron before choosing this option. Install only one production schedule. Keep `DRY_RUN=false` in the private environment file; do not embed SMTP secrets in cron.
+The second entry starts a small process each minute; the application performs the daily work only at 12:00 `America/Toronto`, following DST automatically. Confirm the account permits every-minute cron before choosing this option. Install only one production schedule. Keep `DRY_RUN=false` in the private environment file; do not embed SMTP secrets in cron.
 
 Create the private log directory before adding cron. Use absolute executable and script paths because cron's PATH is usually minimal. The wrapper fixes the working directory; the application owns locking and its ten-minute deadline.
 
-Setting Node's `TZ` does not change cron's scheduling timezone. The process starts at 16:00; retrieval/provider processing add latency before inbox arrival. Cron does not catch up after server downtime. Run manually for the current date after recovery; historical sends require `--date` explicitly.
+Setting Node's `TZ` does not change cron's scheduling timezone. The process starts at 12:00; retrieval/provider processing add latency before inbox arrival. Cron does not catch up after server downtime. Run manually for the current date after recovery; historical sends require `--date` explicitly.
 
 There is no legacy production workflow in the current checkout. `.github/workflows/check.yml` performs offline checks only. Disable any old external schedule still configured elsewhere to avoid multiple senders.
 
@@ -148,7 +148,7 @@ Earlier launch instructions above are retained as setup/recovery guidance, not a
 
 The university job is independent of Superliga. Deploy the updated source/build
 and install a **second** cron entry with `--university --scheduled`. Reuse the
-existing private SMTP environment and recipient. Both jobs use 16:00 Toronto;
+existing private SMTP environment and recipient. Both jobs use 12:00 Toronto;
 the university gate always uses America/Toronto regardless of TIMEZONE.
 
 Optional environment settings:
@@ -184,10 +184,10 @@ university/date/recipient delivery key; manual reruns cannot duplicate it. The
 previous-day reminder and same-day reminder have different dates. SMTP ambiguity
 blocks automatic retry just as for Superliga.
 
-The 4 PM timing intentionally retains games earlier that same day. A label says
+The noon timing intentionally retains games earlier that same day. A label says
 that their scheduled start has passed, or shows a final result if published;
 this is not a live score service. Schedule updates are fetched before sending,
-but changes after 4 PM do not trigger extra emails. TBD times are shown explicitly.
+but changes after noon do not trigger extra emails. TBD times are shown explicitly.
 Unknown venue addresses are not invented; missing/TBD locations on an otherwise
 eligible home fixture cause an operational error for review. Confirmed locations
 outside Toronto are filtered out. Conditional championship/playoff placeholders
@@ -263,3 +263,10 @@ already accepted, recording a publication reason. Uncertain prior delivery still
 blocks sending; do not automatically override it. An active job lock returns
 failure for publication. SMTP acceptance confirms provider acceptance, not inbox
 delivery. Ordinary cron duplicate protection is unchanged.
+
+## Local schedule change — November 8, 2026
+
+Both scheduled jobs now run at noon America/Toronto, including daylight-saving
+changes. The existing hourly cron entries can remain unchanged because the
+application gates select 12:00. Publication is required to activate this change
+on the server; the historical deployment records above describe the former time.

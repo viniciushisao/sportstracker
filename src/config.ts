@@ -59,5 +59,5 @@ export function loadConfig(env: NodeJS.ProcessEnv, args: string[], now = DateTim
 }
 export function isDue(config: Config): boolean {
   const local = config.now.setZone(config.timezone);
-  return !config.scheduled || (local.hour === 16 && local.minute === 0);
+  return !config.scheduled || (local.hour === 12 && local.minute === 0);
 }

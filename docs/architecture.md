@@ -11,7 +11,7 @@ Provide one concise daily email about Brazil's Superliga A, based on CBV's publi
 | Source | Scrape the official CBV website; no sports data API |
 | Coverage | All teams in men's and women's Superliga A |
 | Recipient | `vinicius@hisao.com.br` |
-| Schedule | Every day at 16:00, `America/Toronto`, including daylight-saving changes |
+| Schedule | Every day at 12:00, `America/Toronto`, including daylight-saving changes |
 | Language | English; retain official Portuguese team names |
 | Content | Today's games, yesterday's results, men's standings, women's standings |
 | Hosting | Existing A2 Hosting Basic plan, scheduled with cron; account capabilities pending verification |
@@ -25,7 +25,7 @@ The attached image defines content order and visual hierarchy. Its dates, scores
 These decisions complete the specification where no preference was supplied:
 
 - All displayed times and calendar-day boundaries use Toronto time; clearly label the timezone in the email.
-- Start the job at 16:00; delivery follows retrieval and rendering. Exact inbox arrival at 16:00 is not guaranteed.
+- Start the job at 12:00; delivery follows retrieval and rendering. Exact inbox arrival at 12:00 is not guaranteed.
 - Send every day, including days with no games. Show explicit empty-state text and available current standings.
 - Use SMTP behind a transport interface. The provider and verified sender remain deployment choices.
 - Do not send a normal digest if required source data is invalid or incomplete. Send an error notification instead.
@@ -36,7 +36,7 @@ These decisions complete the specification where no preference was supplied:
 
 ```mermaid
 flowchart LR
-    Cron[Server cron: 16:00 Toronto] --> Job[One-shot TypeScript job]
+    Cron[Server cron: 12:00 Toronto] --> Job[One-shot TypeScript job]
     CBV[CBV competition pages] --> Fetch[Fetch and parse]
     Job --> Fetch
     Fetch --> Normalize[Normalize and validate]
@@ -82,7 +82,7 @@ Use a simple single-column layout, clear headings, ample spacing, and readable t
 
 Empty states: `No games scheduled today.` and `No games yesterday.` are permitted only after successful source and coverage validation. The current adapter requires complete published standings; unpublished or blank tables and missing selectors are failures. An explicit unpublished-state adapter can be added once verified against CBV markup.
 
-Today's section includes matches earlier than 16:00 and matches still to come. Postponed games retain the source status and published date. Cancelled fixtures removed from the source cannot currently be reconstructed. A rescheduled fixture belongs to its new confirmed date; do not duplicate it under the old date. During playoffs, show CBV's published standings with its phase label, even if the table remains the regular-season ranking.
+Today's section includes matches earlier than 12:00 and matches still to come. Postponed games retain the source status and published date. Cancelled fixtures removed from the source cannot currently be reconstructed. A rescheduled fixture belongs to its new confirmed date; do not duplicate it under the old date. During playoffs, show CBV's published standings with its phase label, even if the table remains the regular-season ranking.
 
 ## Scope and tradeoffs
 

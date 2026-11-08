@@ -38,8 +38,9 @@ test('validated no-game day has explicit empty states', () => {
   assert.match(email.text, /No games scheduled today/); assert.match(email.text, /No games yesterday/);
 });
 test('scheduler gate follows Toronto daylight-saving time', () => {
-  for (const instant of ['2026-07-01T20:00:00Z', '2026-12-01T21:00:00Z']) assert.ok(isDue(loadConfig({}, ['--scheduled'], DateTime.fromISO(instant))));
-  assert.ok(!isDue(loadConfig({}, ['--scheduled'], DateTime.fromISO('2026-12-01T20:00:00Z'))));
+  for (const instant of ['2026-07-01T16:00:00Z', '2026-12-01T17:00:00Z']) assert.ok(isDue(loadConfig({}, ['--scheduled'], DateTime.fromISO(instant))));
+  for (const instant of ['2026-07-01T20:00:00Z', '2026-12-01T21:00:00Z', '2026-12-01T16:59:00Z', '2026-12-01T17:01:00Z'])
+    assert.ok(!isDue(loadConfig({}, ['--scheduled'], DateTime.fromISO(instant))));
 });
 test('configuration defaults to safe dry-run and rejects unsafe combinations', () => {
   assert.equal(loadConfig({}, []).dryRun, true);

@@ -2,7 +2,7 @@
 
 A Node.js/TypeScript job that scrapes the official CBV website and emails tomorrow's games, today's games, yesterday's results, and complete men's and women's Superliga A standings to `vinicius@hisao.com.br`.
 
-Production target: the owner's **A2 Hosting Basic plan**, using cron at **4:00 PM America/Toronto**. Emails are in English, with Toronto match times and official Portuguese team names. Deployment was verified on A2 on October 19, 2026; see the operations log below.
+Production target: the owner's **A2 Hosting Basic plan**, using cron at **12:00 PM America/Toronto**. Emails are in English, with Toronto match times and official Portuguese team names. Deployment was verified on A2 on October 19, 2026; see the operations log below.
 
 ## Run locally
 
@@ -64,12 +64,12 @@ The A2 deployment and active cron schedule were inspected on October 19, 2026. A
 ## Toronto university home volleyball reminders
 
 A separate `--university` job tracks U of T Varsity Blues and TMU Bold, men and
-women. It sends one combined email every day at **4 PM America/Toronto**, including
+women. It sends one combined email every day at **noon America/Toronto**, including
 eligible home games today or tomorrow. On no-game days, live schedule validation
 and parsing must pass before an all-clear email is sent. Away and neutral games are excluded,
 even in Toronto; home games relocated outside Toronto are also excluded.
 Each email includes local start times, the published gym, a verified street
-address where known, and official schedule/ticket links. A game before 4 PM still
+address where known, and official schedule/ticket links. A game before noon still
 appears in its game-day email, labelled as past its scheduled start or final.
 Cancelled/postponed games and unconfirmed playoff placeholders are excluded.
 
@@ -91,7 +91,7 @@ and the current CBV source coverage issue.
 
 ## Daily no-game health emails
 
-Both jobs send every day at 4 PM Toronto time. University emails contain today's
+Both jobs send every day at noon Toronto time. University emails contain today's
 and tomorrow's eligible home games. Superliga includes tomorrow's games, today's games, yesterday's
 results and standings. If there are no relevant games, a successful fetch and
 parse of current official sources produces “Health check OK.” Failures use the

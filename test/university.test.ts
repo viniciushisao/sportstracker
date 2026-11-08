@@ -18,7 +18,7 @@ import { snapshot as cbvSnapshot } from './helpers.js';
 
 const sources = scheduleSources('2026-2027');
 const fixture = async (id: string) => gunzipSync(await readFile(new URL(`fixtures/university/${id}.html.gz`, import.meta.url))).toString();
-const config = (date: string) => loadConfig({}, ['--university', '--dry-run', '--date', date, '--fixtures', 'test/fixtures/university'], DateTime.fromISO(`${date}T16:00`, { zone: 'America/Toronto' }));
+const config = (date: string) => loadConfig({}, ['--university', '--dry-run', '--date', date, '--fixtures', 'test/fixtures/university'], DateTime.fromISO(`${date}T12:00`, { zone: 'America/Toronto' }));
 const snapshot = await collectUniversity(config('2026-10-30'), new AbortController().signal);
 const baseGame = snapshot.games.find(g => g.sourceId === 'uoft-men' && g.date === '2026-10-30')!;
 function withGames(...games: UniversitySnapshot['games']): UniversitySnapshot { return { ...snapshot, games }; }
@@ -65,14 +65,15 @@ test('Toronto calendar reminders span DST and year boundaries', () => {
   for (const [date, next] of [['2026-03-07', '2026-03-08'], ['2026-10-31', '2026-11-01'], ['2026-12-31', '2027-01-01']]) {
     assert.equal(reminderGames(withGames({ ...baseGame, date: next! }), date!).length, 1);
   }
-  for (const instant of ['2026-07-01T20:00:00Z', '2026-12-01T21:00:00Z'])
+  for (const instant of ['2026-07-01T16:00:00Z', '2026-12-01T17:00:00Z'])
     assert.ok(isDue(loadConfig({ TIMEZONE: 'UTC' }, ['--university', '--scheduled'], DateTime.fromISO(instant))));
-  assert.ok(!isDue(loadConfig({}, ['--university', '--scheduled'], DateTime.fromISO('2026-12-01T20:00:00Z'))));
+  for (const instant of ['2026-07-01T20:00:00Z', '2026-12-01T21:00:00Z', '2026-12-01T16:59:00Z', '2026-12-01T17:01:00Z'])
+    assert.ok(!isDue(loadConfig({}, ['--university', '--scheduled'], DateTime.fromISO(instant))));
 });
-test('4 PM same-day email retains earlier starts and completed games with accurate labels', () => {
-  const game = { ...baseGame, startsAt: '2026-10-30T13:30:00-04:00' };
+test('Noon same-day email retains earlier starts and completed games with accurate labels', () => {
+  const game = { ...baseGame, startsAt: '2026-10-30T11:30:00-04:00' };
   const email = renderUniversity(withGames(game), config('2026-10-30'))!;
-  assert.match(email.text, /1:30 PM EDT/);
+  assert.match(email.text, /11:30 AM EDT/);
   assert.match(email.text, /Scheduled start has passed/);
   assert.match(renderUniversity(withGames({ ...game, status: 'finished', result: 'W, 3-0' }), config('2026-10-30'))!.text, /Final — W, 3-0/);
 });

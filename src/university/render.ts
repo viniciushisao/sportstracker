@@ -17,8 +17,8 @@ export function renderUniversity(snapshot: UniversitySnapshot, config: Config): 
   if (!games.length) return null;
   const day = DateTime.fromISO(config.date, { zone: 'America/Toronto' });
   const tomorrow = day.plus({ days: 1 }).toISODate()!;
-  // A --date preview models the requested day's scheduled 4 PM send.
-  const asOf = config.now.setZone('America/Toronto').toISODate() === config.date ? config.now : day.set({ hour: 16 });
+  // A --date preview models the requested day's scheduled noon send.
+  const asOf = config.now.setZone('America/Toronto').toISODate() === config.date ? config.now : day.set({ hour: 12 });
   const describe = (g: UniversityGame) => {
     const start = g.startsAt ? DateTime.fromISO(g.startsAt).setZone('America/Toronto') : null;
     const time = start ? start.toFormat('h:mm a ZZZZ') : 'Time not announced';

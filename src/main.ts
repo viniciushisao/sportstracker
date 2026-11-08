@@ -22,7 +22,7 @@ try {
   const local = now.setZone(zone);
   // Gate before validating mail settings to avoid per-minute error notifications
   // when the hosting scheduler invokes a misconfigured job throughout the day.
-  if (args.includes('--scheduled') && (local.hour !== 16 || local.minute !== 0)) process.exitCode = 0;
+  if (args.includes('--scheduled') && (local.hour !== 12 || local.minute !== 0)) process.exitCode = 0;
   else {
     const configuration = loadConfig(process.env, args, now);
     process.exitCode = await (configuration.university ? runUniversityJob(configuration) : runJob(configuration));
